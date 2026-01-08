@@ -517,7 +517,12 @@ import {
               @if (service.fields().length > 0) {
                 <div class="preview-form">
                   @for (field of service.fields(); track field.id) {
-                    <div class="preview-field" [class.has-error]="previewErrors()[field.name]">
+                    @if (isFieldVisible(field)) {
+                    <div
+                      class="preview-field"
+                      [class.has-error]="previewErrors()[field.name]"
+                      [class.field-disabled]="isFieldDisabled(field)"
+                    >
                       <label>
                         {{ field.label }}
                         @if (field.config['required']) {
@@ -530,21 +535,27 @@ import {
                           <input
                             type="text"
                             [placeholder]="field.config['placeholder'] || ''"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
                           />
                         }
                         @case ('email') {
                           <input
                             type="email"
                             placeholder="email@example.com"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
                           />
                         }
                         @case ('password') {
                           <input
                             type="password"
-                            placeholder="••••••••"
+                            placeholder="********"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
                           />
                         }
                         @case ('number') {
@@ -552,17 +563,25 @@ import {
                             type="number"
                             [min]="field.config['min']"
                             [max]="field.config['max']"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getNumberValue($event))"
+                            (blur)="onPreviewBlur(field.name, getNumberValue($event))"
                           />
                         }
                         @case ('textarea') {
                           <textarea
                             [rows]="field.config['rows'] || 4"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
                           ></textarea>
                         }
                         @case ('select') {
-                          <select (change)="onPreviewInput(field.name, getValue($event))">
+                          <select
+                            [disabled]="isFieldDisabled(field)"
+                            (change)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
+                          >
                             <option value="">{{ t('select') }}...</option>
                             @for (opt of field.config['options'] || []; track opt.value) {
                               <option [value]="opt.value">{{ opt.label }}</option>
@@ -572,24 +591,30 @@ import {
                         @case ('boolean') {
                           <input
                             type="checkbox"
+                            [disabled]="isFieldDisabled(field)"
                             (change)="onPreviewInput(field.name, getChecked($event))"
                           />
                         }
                         @case ('date') {
                           <input
                             type="date"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
                           />
                         }
                         @case ('time') {
                           <input
                             type="time"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
                           />
                         }
                         @case ('color') {
                           <input
                             type="color"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
                           />
                         }
@@ -597,34 +622,44 @@ import {
                           <input
                             type="url"
                             placeholder="https://"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
                           />
                         }
                         @case ('phone') {
                           <input
                             type="tel"
                             placeholder="+90 5XX XXX XX XX"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
                           />
                         }
                         @case ('file') {
-                          <input type="file" [accept]="field.config['accept'] || '*'" />
+                          <input
+                            type="file"
+                            [accept]="field.config['accept'] || '*'"
+                            [disabled]="isFieldDisabled(field)"
+                          />
                         }
                         @case ('rating') {
-                          <div class="rating-preview">
+                          <div class="rating-preview" [class.disabled]="isFieldDisabled(field)">
                             @for (star of getStars(field.config['max'] || 5); track star) {
                               <span
                                 class="star"
                                 [class.filled]="isStarFilled(field.name, star)"
-                                (click)="onPreviewInput(field.name, star + 1)"
-                              >{{ isStarFilled(field.name, star) ? '★' : '☆' }}</span>
+                                (click)="!isFieldDisabled(field) && onPreviewInput(field.name, star + 1)"
+                              >{{ isStarFilled(field.name, star) ? '*' : 'o' }}</span>
                             }
                           </div>
                         }
                         @default {
                           <input
                             type="text"
+                            [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onPreviewBlur(field.name, getValue($event))"
                           />
                         }
                       }
@@ -637,6 +672,7 @@ import {
                         <span class="error-message">{{ previewErrors()[field.name] }}</span>
                       }
                     </div>
+                    }
                   }
 
                   <div class="preview-buttons">
@@ -1835,8 +1871,22 @@ import {
     }
 
     .preview-field .error-message {
-      font-size: 0.75rem;
+      font-size: 0.8rem;
       color: var(--error);
+      margin-top: 4px;
+      display: block;
+      font-weight: 500;
+    }
+
+    .preview-field.field-disabled {
+      opacity: 0.6;
+    }
+
+    .preview-field.field-disabled input,
+    .preview-field.field-disabled select,
+    .preview-field.field-disabled textarea {
+      cursor: not-allowed;
+      background: var(--bg-tertiary);
     }
 
     .rating-preview {
@@ -1851,6 +1901,15 @@ import {
 
     .rating-preview .star.filled {
       color: var(--warning);
+    }
+
+    .rating-preview.disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .rating-preview.disabled .star {
+      pointer-events: none;
     }
 
     .preview-buttons {
@@ -2654,6 +2713,11 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
 
   onPreviewInput(fieldName: string, value: unknown): void {
     this.previewValues.update(v => ({ ...v, [fieldName]: value }));
+    // Clear error on input, validate on blur
+    this.previewErrors.update(e => ({ ...e, [fieldName]: '' }));
+  }
+
+  onPreviewBlur(fieldName: string, value: unknown): void {
     this.validatePreviewField(fieldName, value);
   }
 
@@ -2671,18 +2735,147 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
     // MinLength check
     if (!error && field.config['minLength'] && typeof value === 'string' && value.length < (field.config['minLength'] as number)) {
       error = this.lang() === 'tr'
-        ? `En az ${field.config['minLength']} karakter`
-        : `Minimum ${field.config['minLength']} characters`;
+        ? `En az ${field.config['minLength']} karakter gerekli`
+        : `Minimum ${field.config['minLength']} characters required`;
     }
 
     // MaxLength check
     if (!error && field.config['maxLength'] && typeof value === 'string' && value.length > (field.config['maxLength'] as number)) {
       error = this.lang() === 'tr'
-        ? `En fazla ${field.config['maxLength']} karakter`
-        : `Maximum ${field.config['maxLength']} characters`;
+        ? `En fazla ${field.config['maxLength']} karakter olmali`
+        : `Maximum ${field.config['maxLength']} characters allowed`;
+    }
+
+    // Min value check (for numbers)
+    if (!error && field.config['min'] !== undefined && typeof value === 'number' && value < (field.config['min'] as number)) {
+      error = this.lang() === 'tr'
+        ? `Minimum deger: ${field.config['min']}`
+        : `Minimum value: ${field.config['min']}`;
+    }
+
+    // Max value check (for numbers)
+    if (!error && field.config['max'] !== undefined && typeof value === 'number' && value > (field.config['max'] as number)) {
+      error = this.lang() === 'tr'
+        ? `Maksimum deger: ${field.config['max']}`
+        : `Maximum value: ${field.config['max']}`;
+    }
+
+    // Email validation
+    if (!error && field.type === 'email' && value && typeof value === 'string') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        error = this.lang() === 'tr' ? 'Gecerli bir e-posta adresi girin' : 'Enter a valid email address';
+      }
+    }
+
+    // URL validation
+    if (!error && field.type === 'url' && value && typeof value === 'string') {
+      try {
+        new URL(value);
+      } catch {
+        error = this.lang() === 'tr' ? 'Gecerli bir URL girin' : 'Enter a valid URL';
+      }
+    }
+
+    // Pattern validation
+    if (!error && field.config['pattern'] && value && typeof value === 'string') {
+      try {
+        const regex = new RegExp(field.config['pattern'] as string);
+        if (!regex.test(value)) {
+          error = this.lang() === 'tr' ? 'Gecersiz format' : 'Invalid format';
+        }
+      } catch {
+        // Invalid regex pattern, skip
+      }
     }
 
     this.previewErrors.update(e => ({ ...e, [fieldName]: error }));
+  }
+
+  /**
+   * Evaluate if a field should be visible based on showWhen/hideWhen conditions
+   */
+  isFieldVisible(field: FormFieldDef): boolean {
+    const values = this.previewValues();
+
+    // Check hideWhen condition
+    if (field.config['hideWhen']) {
+      const condition = field.config['hideWhen'] as ConditionalRule;
+      if (this.evaluateCondition(condition, values)) {
+        return false; // Hide the field
+      }
+    }
+
+    // Check showWhen condition
+    if (field.config['showWhen']) {
+      const condition = field.config['showWhen'] as ConditionalRule;
+      if (!this.evaluateCondition(condition, values)) {
+        return false; // Don't show until condition is met
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Evaluate if a field should be disabled based on disableWhen condition
+   */
+  isFieldDisabled(field: FormFieldDef): boolean {
+    const values = this.previewValues();
+
+    if (field.config['disableWhen']) {
+      const condition = field.config['disableWhen'] as ConditionalRule;
+      return this.evaluateCondition(condition, values);
+    }
+
+    return false;
+  }
+
+  /**
+   * Evaluate a single condition against current form values
+   */
+  private evaluateCondition(condition: ConditionalRule, values: Record<string, unknown>): boolean {
+    if (!condition || !condition.field || !condition.operator) {
+      return false;
+    }
+
+    const fieldValue = values[condition.field];
+    const conditionValue = condition.value;
+
+    switch (condition.operator) {
+      case 'equals':
+        return fieldValue === conditionValue || String(fieldValue) === String(conditionValue);
+
+      case 'notEquals':
+        return fieldValue !== conditionValue && String(fieldValue) !== String(conditionValue);
+
+      case 'contains':
+        if (typeof fieldValue === 'string' && typeof conditionValue === 'string') {
+          return fieldValue.toLowerCase().includes(conditionValue.toLowerCase());
+        }
+        return false;
+
+      case 'greaterThan':
+        if (typeof fieldValue === 'number' && typeof conditionValue === 'number') {
+          return fieldValue > conditionValue;
+        }
+        return Number(fieldValue) > Number(conditionValue);
+
+      case 'lessThan':
+        if (typeof fieldValue === 'number' && typeof conditionValue === 'number') {
+          return fieldValue < conditionValue;
+        }
+        return Number(fieldValue) < Number(conditionValue);
+
+      case 'isEmpty':
+        return fieldValue === '' || fieldValue === null || fieldValue === undefined;
+
+      case 'isNotEmpty':
+        return fieldValue !== '' && fieldValue !== null && fieldValue !== undefined;
+
+      default:
+        return false;
+    }
   }
 
   resetPreview(): void {
