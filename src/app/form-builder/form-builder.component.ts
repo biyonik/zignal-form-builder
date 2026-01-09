@@ -1189,7 +1189,18 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
             </div>
             <div class="modal-body preview-modal-body">
               <div class="full-preview-form" [class.layout-horizontal]="service.settings().layout === 'horizontal'">
-                @for (field of service.fields(); track field.id) {
+                <!-- Repeatable Groups in Fullscreen -->
+                @for (group of getRepeatableGroups(); track group.id) {
+                  <app-repeatable-group
+                    [group]="group"
+                    [fields]="getGroupFields(group.id)"
+                    [config]="getGroupRepeatableConfig(group)!"
+                    (valuesChange)="onRepeatableValuesChange(group.id, $event)"
+                  />
+                }
+
+                <!-- Regular Fields in Fullscreen -->
+                @for (field of getNonRepeatableFields(); track field.id) {
                   @if (isFieldVisible(field)) {
                     <div
                       class="preview-field"
