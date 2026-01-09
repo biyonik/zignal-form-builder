@@ -504,6 +504,40 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
                       <span>{{ t('collapsible') }}</span>
                     </label>
                   </div>
+                  <div class="config-group">
+                    <label class="checkbox-label">
+                      <input
+                        type="checkbox"
+                        [checked]="isGroupRepeatable(service.selectedGroup())"
+                        (change)="updateGroupRepeatable(getChecked($event))"
+                      />
+                      <span>{{ t('repeatableGroup') }}</span>
+                    </label>
+                  </div>
+                  @if (isGroupRepeatable(service.selectedGroup())) {
+                    <div class="repeatable-settings">
+                      <div class="config-group">
+                        <label>{{ t('minItems') }}</label>
+                        <input
+                          type="number"
+                          [value]="getGroupRepeatableConfig(service.selectedGroup())?.minItems || 1"
+                          min="0"
+                          max="10"
+                          (input)="updateGroupRepeatableConfig('minItems', getNumberValue($event))"
+                        />
+                      </div>
+                      <div class="config-group">
+                        <label>{{ t('maxItems') }}</label>
+                        <input
+                          type="number"
+                          [value]="getGroupRepeatableConfig(service.selectedGroup())?.maxItems || 5"
+                          min="1"
+                          max="20"
+                          (input)="updateGroupRepeatableConfig('maxItems', getNumberValue($event))"
+                        />
+                      </div>
+                    </div>
+                  }
                 </div>
               } @else {
                 <div class="no-selection">
@@ -538,7 +572,18 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
 
               @if (service.fields().length > 0 && !wizardMode()) {
                 <div class="preview-form">
-                  @for (field of service.fields(); track field.id) {
+                  <!-- Repeatable Groups -->
+                  @for (group of getRepeatableGroups(); track group.id) {
+                    <app-repeatable-group
+                      [group]="group"
+                      [fields]="getGroupFields(group.id)"
+                      [config]="getGroupRepeatableConfig(group)!"
+                      (valuesChange)="onRepeatableValuesChange(group.id, $event)"
+                    />
+                  }
+
+                  <!-- Regular Fields (excluding repeatable group fields) -->
+                  @for (field of getNonRepeatableFields(); track field.id) {
                     @if (isFieldVisible(field)) {
                     <div
                       class="preview-field"
@@ -2300,6 +2345,23 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
       padding: 0 !important;
     }
 
+    /* Repeatable Settings */
+    .repeatable-settings {
+      background: var(--bg-tertiary);
+      border-radius: 5px;
+      padding: 10px;
+      margin-top: 10px;
+      border: 1px dashed var(--accent);
+    }
+
+    .repeatable-settings .config-group {
+      margin-bottom: 8px;
+    }
+
+    .repeatable-settings .config-group:last-child {
+      margin-bottom: 0;
+    }
+
     .preview-form {
       display: flex;
       flex-direction: column;
@@ -2893,6 +2955,8 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
       wizardMode: 'Sihirbaz Modu',
       wizardNeedsGroups: 'Sihirbaz modu için grup eklemeniz gerekiyor',
       repeatableGroup: 'Tekrarlanabilir Grup',
+      minItems: 'Minimum Öğe',
+      maxItems: 'Maksimum Öğe',
     },
     en: {
       subtitle: 'Drag & Drop Form Design',
@@ -2973,6 +3037,8 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
       wizardMode: 'Wizard Mode',
       wizardNeedsGroups: 'You need to add groups for wizard mode',
       repeatableGroup: 'Repeatable Group',
+      minItems: 'Minimum Items',
+      maxItems: 'Maximum Items',
     },
   };
 
@@ -3757,6 +3823,76 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
   private generateFieldName(type: string): string {
     const count = this.service.fields().filter(f => f.type === type).length;
     return `${type}${count > 0 ? count + 1 : ''}`;
+  }
+
+  // Repeatable Group Methods
+  repeatableConfigs = signal<Record<string, RepeatableGroupConfig>>({});
+
+  isGroupRepeatable(group: FieldGroup | null | undefined): boolean {
+    if (!group) return false;
+    return !!this.repeatableConfigs()[group.id];
+  }
+
+  getGroupRepeatableConfig(group: FieldGroup | null | undefined): RepeatableGroupConfig | null {
+    if (!group) return null;
+    return this.repeatableConfigs()[group.id] || null;
+  }
+
+  updateGroupRepeatable(enabled: boolean): void {
+    const group = this.service.selectedGroup();
+    if (!group) return;
+
+    if (enabled) {
+      this.repeatableConfigs.update(configs => ({
+        ...configs,
+        [group.id]: {
+          ...DEFAULT_REPEATABLE_CONFIG,
+          groupId: group.id,
+          fieldNames: this.service.fields().filter(f => f.groupId === group.id).map(f => f.name)
+        }
+      }));
+    } else {
+      this.repeatableConfigs.update(configs => {
+        const newConfigs = { ...configs };
+        delete newConfigs[group.id];
+        return newConfigs;
+      });
+    }
+  }
+
+  updateGroupRepeatableConfig(key: string, value: number | null): void {
+    const group = this.service.selectedGroup();
+    if (!group || !this.repeatableConfigs()[group.id]) return;
+
+    this.repeatableConfigs.update(configs => ({
+      ...configs,
+      [group.id]: {
+        ...configs[group.id],
+        [key]: value ?? 1
+      }
+    }));
+  }
+
+  getRepeatableGroups(): FieldGroup[] {
+    return this.service.groups().filter(g => this.isGroupRepeatable(g));
+  }
+
+  getGroupFields(groupId: string): FormFieldDef[] {
+    return this.service.fields().filter(f => f.groupId === groupId);
+  }
+
+  getNonRepeatableFields(): FormFieldDef[] {
+    const repeatableGroupIds = this.getRepeatableGroups().map(g => g.id);
+    return this.service.fields().filter(f => !repeatableGroupIds.includes(f.groupId || ''));
+  }
+
+  onRepeatableValuesChange(groupId: string, values: Record<string, unknown>[]): void {
+    console.log('Repeatable values changed for group', groupId, values);
+    // Store repeatable values
+    this.previewValues.update(v => ({
+      ...v,
+      [`__repeatable_${groupId}`]: values
+    }));
   }
 
   // Wizard Methods
