@@ -404,6 +404,7 @@ export function createFormState(): FormState<${interfaceName}> {
   private getFieldClass(type: string): string {
     const classMap: Record<string, string> = {
       string: 'StringField',
+      text: 'StringField',
       textarea: 'TextareaField',
       number: 'NumberField',
       email: 'EmailField',
@@ -411,18 +412,29 @@ export function createFormState(): FormState<${interfaceName}> {
       url: 'UrlField',
       phone: 'PhoneField',
       select: 'SelectField',
+      dropdown: 'SelectField',
       multiselect: 'MultiselectField',
       boolean: 'BooleanField',
+      checkbox: 'BooleanField',
       date: 'DateField',
       time: 'TimeField',
       color: 'ColorField',
       rating: 'RatingField',
       money: 'MoneyField',
+      currency: 'MoneyField',
       percent: 'PercentField',
       file: 'FileField',
       tags: 'TagsField',
       slug: 'SlugField',
       json: 'JsonField',
+      masked: 'MaskedField',
+      // Turkish validator fields (uses StringField with custom validation)
+      tckn: 'StringField',
+      vkn: 'StringField',
+      iban: 'StringField',
+      turkishPhone: 'PhoneField',
+      turkishPlate: 'StringField',
+      postalCode: 'StringField',
     };
 
     return classMap[type] || 'StringField';
@@ -435,6 +447,7 @@ export function createFormState(): FormState<${interfaceName}> {
   private getTypeScriptType(type: string): string {
     const typeMap: Record<string, string> = {
       string: 'string',
+      text: 'string',
       textarea: 'string',
       number: 'number',
       email: 'string',
@@ -442,18 +455,32 @@ export function createFormState(): FormState<${interfaceName}> {
       url: 'string',
       phone: 'string',
       select: 'string',
+      dropdown: 'string',
       multiselect: 'string[]',
       boolean: 'boolean',
+      checkbox: 'boolean',
       date: 'Date | string',
       time: 'string',
       color: 'string',
       rating: 'number',
       money: 'number',
+      currency: 'number',
       percent: 'number',
       file: 'File | null',
       tags: 'string[]',
       slug: 'string',
       json: 'unknown',
+      masked: 'string',
+      signature: 'string',
+      slider: 'number',
+      calculated: 'number',
+      // Turkish fields
+      tckn: 'string',
+      vkn: 'string',
+      iban: 'string',
+      turkishPhone: 'string',
+      turkishPlate: 'string',
+      postalCode: 'string',
     };
 
     return typeMap[type] || 'unknown';

@@ -16,3 +16,6 @@ export * from './logic-builder/logic-builder.component';
 
 // Signature
 export * from './signature/signature-field.component';
+
+// Zignal Preview
+export * from './zignal-preview/zignal-preview.component';
