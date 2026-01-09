@@ -749,6 +749,35 @@ import {
                             (blur)="onJsonBlur(field.name, getValue($event))"
                           ></textarea>
                         }
+                        @case ('slider') {
+                          <div class="slider-input">
+                            <input
+                              type="range"
+                              [value]="getPreviewValue(field.name) || field.config['min'] || 0"
+                              [min]="field.config['min'] || 0"
+                              [max]="field.config['max'] || 100"
+                              [step]="field.config['step'] || 1"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getNumberValue($event))"
+                            />
+                            @if (field.config['showValue'] !== false) {
+                              <span class="slider-value">{{ getPreviewValue(field.name) || field.config['min'] || 0 }}{{ field.config['unit'] || '' }}</span>
+                            }
+                          </div>
+                        }
+                        @case ('calculated') {
+                          <div class="calculated-field">
+                            <input
+                              type="text"
+                              [value]="getCalculatedValue(field)"
+                              disabled
+                              class="calculated-value"
+                            />
+                            @if (field.config['formula']) {
+                              <span class="formula-indicator" [title]="field.config['formula']">fx</span>
+                            }
+                          </div>
+                        }
                         @default {
                           <input
                             type="text"
@@ -1297,6 +1326,35 @@ import {
                             (input)="onPreviewInput(field.name, getValue($event))"
                             (blur)="onJsonBlur(field.name, getValue($event))"
                           ></textarea>
+                        }
+                        @case ('slider') {
+                          <div class="slider-input">
+                            <input
+                              type="range"
+                              [value]="getPreviewValue(field.name) || field.config['min'] || 0"
+                              [min]="field.config['min'] || 0"
+                              [max]="field.config['max'] || 100"
+                              [step]="field.config['step'] || 1"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getNumberValue($event))"
+                            />
+                            @if (field.config['showValue'] !== false) {
+                              <span class="slider-value">{{ getPreviewValue(field.name) || field.config['min'] || 0 }}{{ field.config['unit'] || '' }}</span>
+                            }
+                          </div>
+                        }
+                        @case ('calculated') {
+                          <div class="calculated-field">
+                            <input
+                              type="text"
+                              [value]="getCalculatedValue(field)"
+                              disabled
+                              class="calculated-value"
+                            />
+                            @if (field.config['formula']) {
+                              <span class="formula-indicator" [title]="field.config['formula']">fx</span>
+                            }
+                          </div>
                         }
                         @default {
                           <input
@@ -2339,6 +2397,69 @@ import {
     .json-textarea {
       font-family: 'Consolas', 'Monaco', monospace;
       font-size: 0.85rem;
+    }
+
+    /* Slider Input Styles */
+    .slider-input {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slider-input input[type="range"] {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--bg-tertiary);
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .slider-input input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .slider-input input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+    }
+
+    .slider-value {
+      min-width: 50px;
+      text-align: right;
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    /* Calculated Field Styles */
+    .calculated-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .calculated-field .calculated-value {
+      flex: 1;
+      background: var(--bg-tertiary);
+      color: var(--accent);
+      font-weight: 600;
+      cursor: not-allowed;
+    }
+
+    .formula-indicator {
+      background: var(--accent);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-style: italic;
+      cursor: help;
     }
 
     .preview-buttons {
@@ -3476,6 +3597,56 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
     } catch {
       const error = this.lang() === 'tr' ? 'Geçersiz JSON formatı' : 'Invalid JSON format';
       this.previewErrors.update(e => ({ ...e, [fieldName]: error }));
+    }
+  }
+
+  // Calculated field helper
+  getCalculatedValue(field: FormFieldDef): string {
+    const formula = field.config['formula'] as string;
+    if (!formula) return '';
+
+    const values = this.previewValues();
+    const decimals = (field.config['decimals'] as number) ?? 2;
+    const prefix = (field.config['prefix'] as string) ?? '';
+    const suffix = (field.config['suffix'] as string) ?? '';
+
+    try {
+      // Replace field references like {fieldName} with actual values
+      let expression = formula.replace(/\{(\w+)\}/g, (_, fieldName) => {
+        const value = values[fieldName];
+        if (value === null || value === undefined || value === '') {
+          return '0';
+        }
+        return String(Number(value) || 0);
+      });
+
+      // Safely evaluate the expression (basic math only)
+      const result = this.evaluateExpression(expression);
+      if (isNaN(result) || !isFinite(result)) {
+        return '';
+      }
+
+      const formatted = result.toFixed(decimals);
+      return `${prefix}${formatted}${suffix}`;
+    } catch {
+      return '';
+    }
+  }
+
+  // Safe expression evaluator for calculated fields
+  private evaluateExpression(expr: string): number {
+    // Only allow numbers, basic operators, parentheses, and spaces
+    const sanitized = expr.replace(/[^0-9+\-*/().%\s]/g, '');
+    if (!sanitized || sanitized !== expr.replace(/\s/g, '').replace(/[^0-9+\-*/().%]/g, '')) {
+      return NaN;
+    }
+
+    // Use Function constructor for safe evaluation (no access to scope)
+    try {
+      const fn = new Function(`return (${sanitized})`);
+      return fn();
+    } catch {
+      return NaN;
     }
   }
 
