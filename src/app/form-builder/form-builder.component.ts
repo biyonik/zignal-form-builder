@@ -534,6 +534,7 @@ import {
                         @case ('string') {
                           <input
                             type="text"
+                            [value]="getPreviewValue(field.name)"
                             [placeholder]="field.config['placeholder'] || ''"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
@@ -543,6 +544,7 @@ import {
                         @case ('email') {
                           <input
                             type="email"
+                            [value]="getPreviewValue(field.name)"
                             placeholder="email@example.com"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
@@ -552,6 +554,7 @@ import {
                         @case ('password') {
                           <input
                             type="password"
+                            [value]="getPreviewValue(field.name)"
                             placeholder="********"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
@@ -561,6 +564,7 @@ import {
                         @case ('number') {
                           <input
                             type="number"
+                            [value]="getPreviewValue(field.name)"
                             [min]="field.config['min']"
                             [max]="field.config['max']"
                             [disabled]="isFieldDisabled(field)"
@@ -570,6 +574,7 @@ import {
                         }
                         @case ('textarea') {
                           <textarea
+                            [value]="getPreviewValue(field.name)"
                             [rows]="field.config['rows'] || 4"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
@@ -578,19 +583,36 @@ import {
                         }
                         @case ('select') {
                           <select
+                            [value]="getPreviewValue(field.name)"
                             [disabled]="isFieldDisabled(field)"
                             (change)="onPreviewInput(field.name, getValue($event))"
                             (blur)="onPreviewBlur(field.name, getValue($event))"
                           >
                             <option value="">{{ t('select') }}...</option>
                             @for (opt of field.config['options'] || []; track opt.value) {
-                              <option [value]="opt.value">{{ opt.label }}</option>
+                              <option [value]="opt.value" [selected]="getPreviewValue(field.name) === opt.value">{{ opt.label }}</option>
                             }
                           </select>
+                        }
+                        @case ('multiselect') {
+                          <div class="multiselect-preview">
+                            @for (opt of field.config['options'] || []; track opt.value) {
+                              <label class="multiselect-option">
+                                <input
+                                  type="checkbox"
+                                  [checked]="isMultiselectChecked(field.name, opt.value)"
+                                  [disabled]="isFieldDisabled(field)"
+                                  (change)="onMultiselectChange(field.name, opt.value, getChecked($event))"
+                                />
+                                {{ opt.label }}
+                              </label>
+                            }
+                          </div>
                         }
                         @case ('boolean') {
                           <input
                             type="checkbox"
+                            [checked]="isPreviewChecked(field.name)"
                             [disabled]="isFieldDisabled(field)"
                             (change)="onPreviewInput(field.name, getChecked($event))"
                           />
@@ -598,6 +620,7 @@ import {
                         @case ('date') {
                           <input
                             type="date"
+                            [value]="getPreviewValue(field.name)"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
                             (blur)="onPreviewBlur(field.name, getValue($event))"
@@ -606,6 +629,7 @@ import {
                         @case ('time') {
                           <input
                             type="time"
+                            [value]="getPreviewValue(field.name)"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
                             (blur)="onPreviewBlur(field.name, getValue($event))"
@@ -614,6 +638,7 @@ import {
                         @case ('color') {
                           <input
                             type="color"
+                            [value]="getPreviewValue(field.name) || '#000000'"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
                           />
@@ -621,6 +646,7 @@ import {
                         @case ('url') {
                           <input
                             type="url"
+                            [value]="getPreviewValue(field.name)"
                             placeholder="https://"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
@@ -630,6 +656,7 @@ import {
                         @case ('phone') {
                           <input
                             type="tel"
+                            [value]="getPreviewValue(field.name)"
                             placeholder="+90 5XX XXX XX XX"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
@@ -650,13 +677,82 @@ import {
                                 class="star"
                                 [class.filled]="isStarFilled(field.name, star)"
                                 (click)="!isFieldDisabled(field) && onPreviewInput(field.name, star + 1)"
-                              >{{ isStarFilled(field.name, star) ? '*' : 'o' }}</span>
+                              >{{ isStarFilled(field.name, star) ? '★' : '☆' }}</span>
                             }
                           </div>
+                        }
+                        @case ('money') {
+                          <div class="money-input">
+                            <span class="currency-symbol">{{ getCurrencySymbol(field.config['currency']) }}</span>
+                            <input
+                              type="number"
+                              [value]="getPreviewValue(field.name)"
+                              [min]="field.config['min']"
+                              [max]="field.config['max']"
+                              step="0.01"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getNumberValue($event))"
+                              (blur)="onPreviewBlur(field.name, getNumberValue($event))"
+                            />
+                          </div>
+                        }
+                        @case ('percent') {
+                          <div class="percent-input">
+                            <input
+                              type="number"
+                              [value]="getPreviewValue(field.name)"
+                              [min]="field.config['min'] || 0"
+                              [max]="field.config['max'] || 100"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getNumberValue($event))"
+                              (blur)="onPreviewBlur(field.name, getNumberValue($event))"
+                            />
+                            <span class="percent-symbol">%</span>
+                          </div>
+                        }
+                        @case ('tags') {
+                          <div class="tags-input">
+                            <div class="tags-list">
+                              @for (tag of getTagsList(field.name); track tag) {
+                                <span class="tag">
+                                  {{ tag }}
+                                  <button type="button" (click)="removeTag(field.name, tag)">×</button>
+                                </span>
+                              }
+                            </div>
+                            <input
+                              type="text"
+                              [placeholder]="lang() === 'tr' ? 'Etiket ekle (Enter)' : 'Add tag (Enter)'"
+                              [disabled]="isFieldDisabled(field)"
+                              (keydown.enter)="addTag(field.name, $event)"
+                            />
+                          </div>
+                        }
+                        @case ('slug') {
+                          <input
+                            type="text"
+                            [value]="getPreviewValue(field.name)"
+                            placeholder="url-slug-ornegi"
+                            [disabled]="isFieldDisabled(field)"
+                            (input)="onPreviewInput(field.name, slugify(getValue($event)))"
+                            (blur)="onPreviewBlur(field.name, getPreviewValue(field.name))"
+                          />
+                        }
+                        @case ('json') {
+                          <textarea
+                            [value]="getPreviewValue(field.name)"
+                            rows="4"
+                            placeholder='{{ "{" }}"key": "value"{{ "}" }}'
+                            class="json-textarea"
+                            [disabled]="isFieldDisabled(field)"
+                            (input)="onPreviewInput(field.name, getValue($event))"
+                            (blur)="onJsonBlur(field.name, getValue($event))"
+                          ></textarea>
                         }
                         @default {
                           <input
                             type="text"
+                            [value]="getPreviewValue(field.name)"
                             [disabled]="isFieldDisabled(field)"
                             (input)="onPreviewInput(field.name, getValue($event))"
                             (blur)="onPreviewBlur(field.name, getValue($event))"
@@ -1912,6 +2008,105 @@ import {
       pointer-events: none;
     }
 
+    /* Multiselect Styles */
+    .multiselect-preview {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .multiselect-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .multiselect-option input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    /* Money Input Styles */
+    .money-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .money-input .currency-symbol {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .money-input input {
+      flex: 1;
+    }
+
+    /* Percent Input Styles */
+    .percent-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .percent-input input {
+      flex: 1;
+    }
+
+    .percent-input .percent-symbol {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    /* Tags Input Styles */
+    .tags-input {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .tags-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tags-list .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--accent);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 15px;
+      font-size: 0.85rem;
+    }
+
+    .tags-list .tag button {
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .tags-list .tag button:hover {
+      opacity: 0.8;
+    }
+
+    /* JSON Textarea Styles */
+    .json-textarea {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.85rem;
+    }
+
     .preview-buttons {
       display: flex;
       gap: 10px;
@@ -2655,15 +2850,55 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
   // Templates
   loadTemplate(template: typeof sampleTemplates[0]): void {
     this.service.clearAllFields();
+
+    // Load groups if available
+    const templateWithGroups = template as typeof sampleTemplates[0] & {
+      groups?: Array<{ id: string; name: { tr: string; en: string }; color: string; collapsed: boolean; order: number }>;
+      settings?: { showReset?: boolean; theme?: string };
+    };
+
+    // Map old group IDs to new group IDs
+    const groupIdMap = new Map<string, string>();
+
+    if (templateWithGroups.groups) {
+      for (const group of templateWithGroups.groups) {
+        const label = this.lang() === 'tr' ? group.name.tr : group.name.en;
+        const newGroup = this.service.addGroup(group.id, label);
+        groupIdMap.set(group.id, newGroup.id);
+
+        // Update group with additional properties
+        this.service.updateGroup(newGroup.id, {
+          collapsed: group.collapsed,
+          order: group.order,
+        });
+      }
+    }
+
+    // Load fields
     for (const f of template.fields) {
+      const fieldWithGroup = f as typeof template.fields[0] & { groupId?: string };
+      const mappedGroupId = fieldWithGroup.groupId ? groupIdMap.get(fieldWithGroup.groupId) : undefined;
+
       this.service.addField({
         type: f.type,
         name: f.name,
         label: f.label,
+        groupId: mappedGroupId,
         config: { ...f.config },
       });
     }
+
+    // Load settings if available
+    if (templateWithGroups.settings) {
+      if (templateWithGroups.settings.showReset !== undefined) {
+        this.service.updateSettings({ showReset: templateWithGroups.settings.showReset });
+      }
+    }
+
     this.service.selectField(null);
+    this.service.selectGroup(null);
+    this.previewValues.set({});
+    this.previewErrors.set({});
   }
 
   // Export
@@ -2904,6 +3139,110 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
   isStarFilled(fieldName: string, star: number): boolean {
     const value = this.previewValues()[fieldName];
     return typeof value === 'number' && star < value;
+  }
+
+  // Get preview value for binding
+  getPreviewValue(fieldName: string): string {
+    const value = this.previewValues()[fieldName];
+    if (value === null || value === undefined) return '';
+    return String(value);
+  }
+
+  // Check if boolean field is checked
+  isPreviewChecked(fieldName: string): boolean {
+    const value = this.previewValues()[fieldName];
+    return value === true;
+  }
+
+  // Multiselect helpers
+  isMultiselectChecked(fieldName: string, optionValue: string): boolean {
+    const value = this.previewValues()[fieldName];
+    if (Array.isArray(value)) {
+      return value.includes(optionValue);
+    }
+    return false;
+  }
+
+  onMultiselectChange(fieldName: string, optionValue: string, checked: boolean): void {
+    const current = this.previewValues()[fieldName];
+    let newValue: string[] = Array.isArray(current) ? [...current] : [];
+
+    if (checked) {
+      if (!newValue.includes(optionValue)) {
+        newValue.push(optionValue);
+      }
+    } else {
+      newValue = newValue.filter(v => v !== optionValue);
+    }
+
+    this.previewValues.update(v => ({ ...v, [fieldName]: newValue }));
+  }
+
+  // Currency symbol helper
+  getCurrencySymbol(currency: unknown): string {
+    switch (currency) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'TRY': return '₺';
+      default: return '₺';
+    }
+  }
+
+  // Tags helpers
+  getTagsList(fieldName: string): string[] {
+    const value = this.previewValues()[fieldName];
+    if (Array.isArray(value)) {
+      return value;
+    }
+    return [];
+  }
+
+  addTag(fieldName: string, event: Event): void {
+    event.preventDefault();
+    const input = event.target as HTMLInputElement;
+    const tag = input.value.trim();
+    if (tag) {
+      const current = this.previewValues()[fieldName];
+      const tags: string[] = Array.isArray(current) ? [...current] : [];
+      if (!tags.includes(tag)) {
+        tags.push(tag);
+        this.previewValues.update(v => ({ ...v, [fieldName]: tags }));
+      }
+      input.value = '';
+    }
+  }
+
+  removeTag(fieldName: string, tag: string): void {
+    const current = this.previewValues()[fieldName];
+    if (Array.isArray(current)) {
+      const newTags = current.filter(t => t !== tag);
+      this.previewValues.update(v => ({ ...v, [fieldName]: newTags }));
+    }
+  }
+
+  // Slug helper
+  slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+  }
+
+  // JSON validation helper
+  onJsonBlur(fieldName: string, value: string): void {
+    if (!value) {
+      this.previewErrors.update(e => ({ ...e, [fieldName]: '' }));
+      return;
+    }
+    try {
+      JSON.parse(value);
+      this.previewErrors.update(e => ({ ...e, [fieldName]: '' }));
+    } catch {
+      const error = this.lang() === 'tr' ? 'Geçersiz JSON formatı' : 'Invalid JSON format';
+      this.previewErrors.update(e => ({ ...e, [fieldName]: error }));
+    }
   }
 
   updateSubmitButtonText(lang: 'tr' | 'en', value: string): void {

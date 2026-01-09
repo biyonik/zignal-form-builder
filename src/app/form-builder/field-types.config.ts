@@ -330,4 +330,75 @@ export const sampleTemplates = [
       { type: 'boolean', name: 'acceptTerms', label: 'Şartları Kabul Et / Accept Terms', config: { required: true } },
     ],
   },
+  {
+    id: 'comprehensive',
+    name: { tr: 'Kapsamlı Demo Formu', en: 'Comprehensive Demo Form' },
+    icon: '🎯',
+    fields: [
+      // === Group 1: Personal Information ===
+      { type: 'string', name: 'firstName', label: 'Ad / First Name', groupId: 'personal', config: { required: true, minLength: 2, maxLength: 50, placeholder: 'Adınız' } },
+      { type: 'string', name: 'lastName', label: 'Soyad / Last Name', groupId: 'personal', config: { required: true, minLength: 2, maxLength: 50, placeholder: 'Soyadınız' } },
+      { type: 'email', name: 'email', label: 'E-posta / Email', groupId: 'personal', config: { required: true } },
+      { type: 'phone', name: 'phone', label: 'Telefon / Phone', groupId: 'personal', config: { required: false } },
+      { type: 'date', name: 'birthDate', label: 'Doğum Tarihi / Birth Date', groupId: 'personal', config: { required: true } },
+
+      // === Group 2: Account Details ===
+      { type: 'password', name: 'password', label: 'Şifre / Password', groupId: 'account', config: { required: true, minLength: 8 } },
+      { type: 'url', name: 'website', label: 'Web Sitesi / Website', groupId: 'account', config: { required: false } },
+      { type: 'slug', name: 'username', label: 'Kullanıcı Adı (Slug) / Username', groupId: 'account', config: { required: true } },
+
+      // === Group 3: Preferences ===
+      { type: 'select', name: 'country', label: 'Ülke / Country', groupId: 'preferences', config: {
+        required: true,
+        options: [
+          { value: 'tr', label: 'Türkiye' },
+          { value: 'us', label: 'United States' },
+          { value: 'de', label: 'Germany' },
+          { value: 'fr', label: 'France' },
+          { value: 'uk', label: 'United Kingdom' },
+        ],
+      }},
+      { type: 'multiselect', name: 'interests', label: 'İlgi Alanları / Interests', groupId: 'preferences', config: {
+        required: true,
+        min: 1,
+        max: 5,
+        options: [
+          { value: 'technology', label: 'Teknoloji / Technology' },
+          { value: 'sports', label: 'Spor / Sports' },
+          { value: 'music', label: 'Müzik / Music' },
+          { value: 'art', label: 'Sanat / Art' },
+          { value: 'travel', label: 'Seyahat / Travel' },
+          { value: 'food', label: 'Yemek / Food' },
+          { value: 'gaming', label: 'Oyun / Gaming' },
+        ],
+      }},
+      { type: 'color', name: 'favoriteColor', label: 'Favori Renk / Favorite Color', groupId: 'preferences', config: {} },
+      { type: 'time', name: 'preferredContactTime', label: 'İletişim Saati / Preferred Contact Time', groupId: 'preferences', config: {} },
+
+      // === Group 4: Professional Info ===
+      { type: 'textarea', name: 'bio', label: 'Biyografi / Bio', groupId: 'professional', config: { required: false, rows: 4, maxLength: 500, hint: 'Kendinizi kısaca tanıtın (max 500 karakter)' } },
+      { type: 'number', name: 'yearsOfExperience', label: 'Deneyim Yılı / Years of Experience', groupId: 'professional', config: { min: 0, max: 50 } },
+      { type: 'money', name: 'expectedSalary', label: 'Beklenen Maaş / Expected Salary', groupId: 'professional', config: { currency: 'TRY', min: 0 } },
+      { type: 'percent', name: 'remoteWorkPreference', label: 'Uzaktan Çalışma Tercihi / Remote Work Preference', groupId: 'professional', config: { min: 0, max: 100 } },
+      { type: 'tags', name: 'skills', label: 'Yetenekler / Skills', groupId: 'professional', config: { max: 10 } },
+
+      // === Group 5: Additional Info ===
+      { type: 'rating', name: 'selfRating', label: 'Kendinizi Puanlayın / Rate Yourself', groupId: 'additional', config: { required: true, max: 5 } },
+      { type: 'file', name: 'resume', label: 'CV Yükle / Upload Resume', groupId: 'additional', config: { accept: '.pdf,.doc,.docx', maxSize: 5 } },
+      { type: 'json', name: 'additionalData', label: 'Ek Veri (JSON) / Additional Data', groupId: 'additional', config: {} },
+      { type: 'boolean', name: 'newsletter', label: 'Bültene Abone Ol / Subscribe Newsletter', groupId: 'additional', config: {} },
+      { type: 'boolean', name: 'acceptTerms', label: 'Şartları Kabul Ediyorum / I Accept Terms', groupId: 'additional', config: { required: true } },
+    ],
+    groups: [
+      { id: 'personal', name: { tr: 'Kişisel Bilgiler', en: 'Personal Information' }, color: '#4CAF50', collapsed: false, order: 0 },
+      { id: 'account', name: { tr: 'Hesap Bilgileri', en: 'Account Details' }, color: '#2196F3', collapsed: false, order: 1 },
+      { id: 'preferences', name: { tr: 'Tercihler', en: 'Preferences' }, color: '#FF9800', collapsed: false, order: 2 },
+      { id: 'professional', name: { tr: 'Profesyonel Bilgiler', en: 'Professional Info' }, color: '#9C27B0', collapsed: false, order: 3 },
+      { id: 'additional', name: { tr: 'Ek Bilgiler', en: 'Additional Info' }, color: '#607D8B', collapsed: false, order: 4 },
+    ],
+    settings: {
+      showReset: true,
+      theme: 'light',
+    },
+  },
 ];
