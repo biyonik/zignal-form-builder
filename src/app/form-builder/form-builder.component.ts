@@ -24,11 +24,12 @@ import {
 import { WizardPreviewComponent } from './components/wizard/wizard-preview.component';
 import { RepeatableGroupComponent } from './components/repeatable/repeatable-group.component';
 import { LogicBuilderComponent } from './components/logic-builder/logic-builder.component';
+import { SignatureFieldComponent } from './components/signature/signature-field.component';
 
 @Component({
   selector: 'app-form-builder',
   standalone: true,
-  imports: [CommonModule, FormsModule, WizardPreviewComponent, RepeatableGroupComponent, LogicBuilderComponent],
+  imports: [CommonModule, FormsModule, WizardPreviewComponent, RepeatableGroupComponent, LogicBuilderComponent, SignatureFieldComponent],
   template: `
     <div class="builder-container" [class.light-theme]="service.theme() === 'light'">
       <!-- Header -->
@@ -345,6 +346,20 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
                     </div>
                   }
 
+                  <!-- Grid Layout Options -->
+                  <div class="config-group">
+                    <label>{{ t('columnWidth') }}</label>
+                    <select
+                      [value]="service.selectedField()?.config?.['columnWidth'] || '100'"
+                      (change)="updateFieldConfig('columnWidth', getValue($event))"
+                    >
+                      <option value="100">100% ({{ t('fullWidth') }})</option>
+                      <option value="50">50% ({{ t('halfWidth') }})</option>
+                      <option value="33">33% ({{ t('thirdWidth') }})</option>
+                      <option value="25">25% ({{ t('quarterWidth') }})</option>
+                    </select>
+                  </div>
+
                   <!-- Conditional Logic Section -->
                   <div class="config-section">
                     <h5>{{ t('conditionalLogic') }}</h5>
@@ -553,6 +568,27 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
               <div class="preview-header">
                 <h4>{{ t('formPreview') }}</h4>
                 <div class="preview-actions">
+                  <!-- Device Preview Selector -->
+                  <div class="device-selector">
+                    <button
+                      class="device-btn"
+                      [class.active]="previewDevice() === 'mobile'"
+                      (click)="previewDevice.set('mobile')"
+                      title="Mobile (375px)"
+                    >📱</button>
+                    <button
+                      class="device-btn"
+                      [class.active]="previewDevice() === 'tablet'"
+                      (click)="previewDevice.set('tablet')"
+                      title="Tablet (768px)"
+                    >📱</button>
+                    <button
+                      class="device-btn"
+                      [class.active]="previewDevice() === 'desktop'"
+                      (click)="previewDevice.set('desktop')"
+                      title="Desktop (100%)"
+                    >🖥️</button>
+                  </div>
                   <label class="wizard-toggle">
                     <input
                       type="checkbox"
@@ -571,7 +607,8 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
               </div>
 
               @if (service.fields().length > 0 && !wizardMode()) {
-                <div class="preview-form">
+                <div class="preview-device-frame" [class]="'device-' + previewDevice()">
+                  <div class="preview-form">
                   <!-- Repeatable Groups -->
                   @for (group of getRepeatableGroups(); track group.id) {
                     <app-repeatable-group
@@ -589,6 +626,10 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
                       class="preview-field"
                       [class.has-error]="previewErrors()[field.name]"
                       [class.field-disabled]="isFieldDisabled(field)"
+                      [class.col-100]="!field.config['columnWidth'] || field.config['columnWidth'] === '100'"
+                      [class.col-50]="field.config['columnWidth'] === '50'"
+                      [class.col-33]="field.config['columnWidth'] === '33'"
+                      [class.col-25]="field.config['columnWidth'] === '25'"
                     >
                       <label>
                         {{ field.label }}
@@ -845,6 +886,18 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
                             }
                           </div>
                         }
+                        @case ('signature') {
+                          <app-signature-field
+                            [width]="$any(field.config['width']) || 400"
+                            [height]="$any(field.config['height']) || 150"
+                            [penColor]="$any(field.config['penColor']) || '#000000'"
+                            [backgroundColor]="$any(field.config['backgroundColor']) || '#ffffff'"
+                            [disabled]="isFieldDisabled(field)"
+                            [value]="getPreviewValue(field.name)"
+                            [lang]="lang()"
+                            (valueChange)="onPreviewInput(field.name, $event)"
+                          />
+                        }
                         @default {
                           <input
                             type="text"
@@ -867,15 +920,16 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
                     }
                   }
 
-                  <div class="preview-buttons">
-                    <button class="btn-submit" type="button">
-                      {{ service.settings().submitButtonText[lang()] }}
-                    </button>
-                    @if (service.settings().showReset) {
-                      <button class="btn-reset" type="button" (click)="resetPreview()">
-                        {{ service.settings().resetButtonText[lang()] }}
+                    <div class="preview-buttons">
+                      <button class="btn-submit" type="button" (click)="saveFormResponse()">
+                        {{ service.settings().submitButtonText[lang()] }}
                       </button>
-                    }
+                      @if (service.settings().showReset) {
+                        <button class="btn-reset" type="button" (click)="resetPreview()">
+                          {{ service.settings().resetButtonText[lang()] }}
+                        </button>
+                      }
+                    </div>
                   </div>
                 </div>
               }
@@ -1104,6 +1158,118 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
                 <button class="btn-add-validator" (click)="showCrossValidatorModal.set(true)">
                   + {{ t('addCrossValidator') }}
                 </button>
+
+                <hr />
+
+                <!-- Webhook/API Integration -->
+                <h5>📡 {{ t('webhookIntegration') }}</h5>
+                <div class="config-group">
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      [checked]="webhookEnabled()"
+                      (change)="webhookEnabled.set(getChecked($event))"
+                    />
+                    <span>{{ t('enableWebhook') }}</span>
+                  </label>
+                </div>
+                @if (webhookEnabled()) {
+                  <div class="config-group">
+                    <label>{{ t('webhookUrl') }}</label>
+                    <input
+                      type="url"
+                      [value]="webhookUrl()"
+                      placeholder="https://api.example.com/webhook"
+                      (input)="webhookUrl.set(getValue($event))"
+                    />
+                  </div>
+                  <div class="config-group">
+                    <label>{{ t('webhookMethod') }}</label>
+                    <select [value]="webhookMethod()" (change)="webhookMethod.set(getValue($event))">
+                      <option value="POST">POST</option>
+                      <option value="PUT">PUT</option>
+                      <option value="PATCH">PATCH</option>
+                    </select>
+                  </div>
+                  <div class="config-group">
+                    <label>{{ t('webhookHeaders') }}</label>
+                    <textarea
+                      [value]="webhookHeaders()"
+                      placeholder='{"Authorization": "Bearer token"}'
+                      rows="2"
+                      (input)="webhookHeaders.set(getValue($event))"
+                    ></textarea>
+                    <small class="help-text">JSON format</small>
+                  </div>
+                  <button class="btn-test-webhook" (click)="testWebhook()">
+                    🧪 {{ t('testWebhook') }}
+                  </button>
+                }
+
+                <hr />
+
+                <!-- Email Notification -->
+                <h5>📧 {{ t('emailNotification') }}</h5>
+                <div class="config-group">
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      [checked]="emailNotificationEnabled()"
+                      (change)="emailNotificationEnabled.set(getChecked($event))"
+                    />
+                    <span>{{ t('enableEmailNotification') }}</span>
+                  </label>
+                </div>
+                @if (emailNotificationEnabled()) {
+                  <div class="config-group">
+                    <label>{{ t('notifyEmails') }}</label>
+                    <input
+                      type="text"
+                      [value]="notifyEmails()"
+                      placeholder="admin@example.com, support@example.com"
+                      (input)="notifyEmails.set(getValue($event))"
+                    />
+                    <small class="help-text">{{ t('separateWithComma') }}</small>
+                  </div>
+                  <div class="config-group">
+                    <label>{{ t('emailSubject') }}</label>
+                    <input
+                      type="text"
+                      [value]="emailSubject()"
+                      [placeholder]="t('newFormSubmission')"
+                      (input)="emailSubject.set(getValue($event))"
+                    />
+                  </div>
+                  <div class="config-group">
+                    <label class="checkbox-label">
+                      <input
+                        type="checkbox"
+                        [checked]="includeFormDataInEmail()"
+                        (change)="includeFormDataInEmail.set(getChecked($event))"
+                      />
+                      <span>{{ t('includeFormData') }}</span>
+                    </label>
+                  </div>
+                }
+
+                <hr />
+
+                <!-- Response Viewer -->
+                <h5>📊 {{ t('responses') }}</h5>
+                <div class="response-summary">
+                  <span class="response-count">{{ formResponses().length }} {{ t('totalResponses') }}</span>
+                  @if (formResponses().length > 0) {
+                    <button class="btn-view-responses" (click)="showResponseViewer.set(true)">
+                      👁️ {{ t('viewResponses') }}
+                    </button>
+                    <button class="btn-export-responses" (click)="exportResponsesToCSV()">
+                      📥 {{ t('exportCSV') }}
+                    </button>
+                    <button class="btn-clear-responses" (click)="clearResponses()">
+                      🗑️ {{ t('clearResponses') }}
+                    </button>
+                  }
+                </div>
               </div>
             </div>
           }
@@ -1179,6 +1345,69 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
         </div>
       }
 
+      <!-- Response Viewer Modal -->
+      @if (showResponseViewer()) {
+        <div class="modal-overlay" (click)="showResponseViewer.set(false)">
+          <div class="modal modal-large" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+              <h3>📊 {{ t('responses') }} ({{ formResponses().length }})</h3>
+              <button class="btn-close" (click)="showResponseViewer.set(false)">✕</button>
+            </div>
+            <div class="modal-body response-viewer-body">
+              @if (formResponses().length === 0) {
+                <div class="empty-responses">
+                  <span class="empty-icon">📭</span>
+                  <p>{{ t('noResponses') }}</p>
+                </div>
+              } @else {
+                <div class="response-list">
+                  @for (response of formResponses(); track response.id; let i = $index) {
+                    <div class="response-item" [class.expanded]="expandedResponseId() === response.id">
+                      <div class="response-header" (click)="toggleResponseExpand(response.id)">
+                        <span class="response-number">#{{ i + 1 }}</span>
+                        <span class="response-date">{{ formatResponseDate(response.timestamp) }}</span>
+                        <span class="expand-icon">{{ expandedResponseId() === response.id ? '▼' : '▶' }}</span>
+                      </div>
+                      @if (expandedResponseId() === response.id) {
+                        <div class="response-details">
+                          <table class="response-table">
+                            <thead>
+                              <tr>
+                                <th>{{ t('fieldName') }}</th>
+                                <th>{{ t('value') }}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (entry of getResponseEntries(response.values); track entry.key) {
+                                <tr>
+                                  <td class="field-name">{{ getFieldLabel(entry.key) }}</td>
+                                  <td class="field-value">
+                                    @if (isSignatureValue(entry.value)) {
+                                      <img [src]="entry.value" alt="Signature" class="signature-preview" />
+                                    } @else {
+                                      {{ formatResponseValue(entry.value) }}
+                                    }
+                                  </td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                          <div class="response-actions">
+                            <button class="btn-delete-response" (click)="deleteResponse(response.id)">
+                              🗑️ {{ t('delete') }}
+                            </button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- Full Preview Modal -->
       @if (showFullPreview()) {
         <div class="modal-overlay" (click)="showFullPreview.set(false)">
@@ -1206,6 +1435,10 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
                       class="preview-field"
                       [class.has-error]="previewErrors()[field.name]"
                       [class.field-disabled]="isFieldDisabled(field)"
+                      [class.col-100]="!field.config['columnWidth'] || field.config['columnWidth'] === '100'"
+                      [class.col-50]="field.config['columnWidth'] === '50'"
+                      [class.col-33]="field.config['columnWidth'] === '33'"
+                      [class.col-25]="field.config['columnWidth'] === '25'"
                     >
                       <label>
                         {{ field.label }}
@@ -1462,6 +1695,18 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
                             }
                           </div>
                         }
+                        @case ('signature') {
+                          <app-signature-field
+                            [width]="$any(field.config['width']) || 400"
+                            [height]="$any(field.config['height']) || 150"
+                            [penColor]="$any(field.config['penColor']) || '#000000'"
+                            [backgroundColor]="$any(field.config['backgroundColor']) || '#ffffff'"
+                            [disabled]="isFieldDisabled(field)"
+                            [value]="getPreviewValue(field.name)"
+                            [lang]="lang()"
+                            (valueChange)="onPreviewInput(field.name, $event)"
+                          />
+                        }
                         @default {
                           <input
                             type="text"
@@ -1485,7 +1730,7 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
                   }
                 }
                 <div class="preview-buttons">
-                  <button class="btn-submit" type="button">
+                  <button class="btn-submit" type="button" (click)="saveFormResponse()">
                     {{ service.settings().submitButtonText[lang()] }}
                   </button>
                   @if (service.settings().showReset) {
@@ -2373,10 +2618,85 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
       margin-bottom: 0;
     }
 
+    /* Device Selector */
+    .device-selector {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-tertiary);
+      padding: 3px;
+      border-radius: 6px;
+    }
+
+    .device-btn {
+      background: transparent;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      opacity: 0.5;
+      transition: all 0.2s;
+    }
+
+    .device-btn:hover {
+      opacity: 0.8;
+    }
+
+    .device-btn.active {
+      background: var(--accent);
+      opacity: 1;
+    }
+
+    /* Device Preview Frame */
+    .preview-device-frame {
+      transition: all 0.3s ease;
+      margin: 0 auto;
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 15px;
+      overflow-y: auto;
+      max-height: 600px;
+    }
+
+    .preview-device-frame.device-mobile {
+      max-width: 375px;
+      border-radius: 24px;
+      border-width: 8px;
+      border-color: #333;
+    }
+
+    .preview-device-frame.device-tablet {
+      max-width: 768px;
+      border-radius: 16px;
+      border-width: 6px;
+      border-color: #444;
+    }
+
+    .preview-device-frame.device-desktop {
+      max-width: 100%;
+      border: none;
+      padding: 0;
+    }
+
     .preview-form {
       display: flex;
-      flex-direction: column;
+      flex-wrap: wrap;
       gap: 15px;
+    }
+
+    /* Grid Layout Classes */
+    .preview-field.col-100 { width: 100%; }
+    .preview-field.col-50 { width: calc(50% - 8px); }
+    .preview-field.col-33 { width: calc(33.333% - 10px); }
+    .preview-field.col-25 { width: calc(25% - 12px); }
+
+    @media (max-width: 768px) {
+      .preview-field.col-50,
+      .preview-field.col-33,
+      .preview-field.col-25 {
+        width: 100%;
+      }
     }
 
     .preview-field {
@@ -2817,6 +3137,215 @@ import { LogicBuilderComponent } from './components/logic-builder/logic-builder.
     }
 
     /* ========================================
+       Webhook & Email Settings
+       ======================================== */
+    .btn-test-webhook {
+      margin-top: 8px;
+      padding: 8px 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .btn-test-webhook:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .help-text {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    /* ========================================
+       Response Viewer Styles
+       ======================================== */
+    .response-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 12px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+    }
+
+    .response-count {
+      font-weight: 600;
+      color: var(--accent);
+      margin-right: auto;
+    }
+
+    .btn-view-responses,
+    .btn-export-responses,
+    .btn-clear-responses {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .btn-view-responses {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-view-responses:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-export-responses {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-export-responses:hover {
+      opacity: 0.9;
+    }
+
+    .btn-clear-responses {
+      background: var(--error);
+      color: #fff;
+    }
+
+    .btn-clear-responses:hover {
+      opacity: 0.9;
+    }
+
+    /* Response Viewer Modal */
+    .response-viewer-body {
+      padding: 0 !important;
+    }
+
+    .empty-responses {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      display: block;
+      margin-bottom: 16px;
+    }
+
+    .response-list {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .response-item {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .response-item:last-child {
+      border-bottom: none;
+    }
+
+    .response-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .response-header:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .response-number {
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 40px;
+    }
+
+    .response-date {
+      flex: 1;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .expand-icon {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+    }
+
+    .response-details {
+      padding: 0 16px 16px;
+      background: var(--bg-tertiary);
+    }
+
+    .response-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--bg-primary);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .response-table th,
+    .response-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .response-table th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .response-table td.field-name {
+      font-weight: 500;
+      color: var(--accent);
+      width: 40%;
+    }
+
+    .response-table td.field-value {
+      color: var(--text-primary);
+    }
+
+    .signature-preview {
+      max-width: 150px;
+      max-height: 60px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+
+    .response-actions {
+      margin-top: 12px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .btn-delete-response {
+      padding: 6px 12px;
+      background: var(--error);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: opacity 0.2s;
+    }
+
+    .btn-delete-response:hover {
+      opacity: 0.9;
+    }
+
+    /* ========================================
        Responsive
        ======================================== */
     @media (max-width: 1200px) {
@@ -2854,9 +3383,29 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
   wizardMode = signal(false);
   wizardConfig: WizardConfig = DEFAULT_WIZARD_CONFIG;
 
+  // Device preview state
+  previewDevice = signal<'mobile' | 'tablet' | 'desktop'>('desktop');
+
   // Preview state
   previewValues = signal<Record<string, unknown>>({});
   previewErrors = signal<Record<string, string>>({});
+
+  // Response storage (simulated submissions)
+  formResponses = signal<Array<{ id: string; timestamp: Date; values: Record<string, unknown> }>>([]);
+  showResponseViewer = signal(false);
+  expandedResponseId = signal<string | null>(null);
+
+  // Webhook settings
+  webhookEnabled = signal(false);
+  webhookUrl = signal('');
+  webhookMethod = signal('POST');
+  webhookHeaders = signal('');
+
+  // Email notification settings
+  emailNotificationEnabled = signal(false);
+  notifyEmails = signal('');
+  emailSubject = signal('');
+  includeFormDataInEmail = signal(true);
 
   // Drag state
   private draggedFieldType: FieldTypeConfig | null = null;
@@ -2968,6 +3517,33 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
       repeatableGroup: 'Tekrarlanabilir Grup',
       minItems: 'Minimum Öğe',
       maxItems: 'Maksimum Öğe',
+      columnWidth: 'Sütun Genişliği',
+      fullWidth: 'Tam Genişlik',
+      halfWidth: 'Yarım',
+      thirdWidth: 'Üçte Bir',
+      quarterWidth: 'Çeyrek',
+      responses: 'Yanıtlar',
+      noResponses: 'Henüz yanıt yok',
+      webhookIntegration: 'Webhook/API Entegrasyonu',
+      enableWebhook: 'Webhook Etkinleştir',
+      webhookUrl: 'Webhook URL',
+      webhookMethod: 'HTTP Metodu',
+      webhookHeaders: 'HTTP Headers',
+      testWebhook: 'Webhook Test Et',
+      emailNotification: 'E-posta Bildirimi',
+      enableEmailNotification: 'E-posta Bildirimi Etkinleştir',
+      notifyEmails: 'Bildirim E-postaları',
+      separateWithComma: 'Virgülle ayırın',
+      emailSubject: 'E-posta Konusu',
+      newFormSubmission: 'Yeni Form Gönderimi',
+      includeFormData: 'Form verilerini ekle',
+      totalResponses: 'Toplam Yanıt',
+      viewResponses: 'Yanıtları Görüntüle',
+      exportCSV: 'CSV İndir',
+      clearResponses: 'Yanıtları Temizle',
+      value: 'Değer',
+      delete: 'Sil',
+      saveResponse: 'Yanıtı Kaydet',
     },
     en: {
       subtitle: 'Drag & Drop Form Design',
@@ -3050,6 +3626,33 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
       repeatableGroup: 'Repeatable Group',
       minItems: 'Minimum Items',
       maxItems: 'Maximum Items',
+      columnWidth: 'Column Width',
+      fullWidth: 'Full Width',
+      halfWidth: 'Half',
+      thirdWidth: 'Third',
+      quarterWidth: 'Quarter',
+      responses: 'Responses',
+      noResponses: 'No responses yet',
+      webhookIntegration: 'Webhook/API Integration',
+      enableWebhook: 'Enable Webhook',
+      webhookUrl: 'Webhook URL',
+      webhookMethod: 'HTTP Method',
+      webhookHeaders: 'HTTP Headers',
+      testWebhook: 'Test Webhook',
+      emailNotification: 'Email Notification',
+      enableEmailNotification: 'Enable Email Notification',
+      notifyEmails: 'Notification Emails',
+      separateWithComma: 'Separate with comma',
+      emailSubject: 'Email Subject',
+      newFormSubmission: 'New Form Submission',
+      includeFormData: 'Include form data',
+      totalResponses: 'Total Responses',
+      viewResponses: 'View Responses',
+      exportCSV: 'Export CSV',
+      clearResponses: 'Clear Responses',
+      value: 'Value',
+      delete: 'Delete',
+      saveResponse: 'Save Response',
     },
   };
 
@@ -3954,5 +4557,179 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
     const values = this.previewValues();
 
     this.pdfExport.exportToPdf(formName, fields, values);
+  }
+
+  // Webhook Methods
+  testWebhook(): void {
+    if (!this.webhookUrl()) {
+      alert(this.lang() === 'tr' ? 'Lütfen webhook URL girin' : 'Please enter webhook URL');
+      return;
+    }
+
+    const testData = {
+      test: true,
+      formName: this.service.currentForm().name,
+      timestamp: new Date().toISOString(),
+      fields: this.service.fields().map(f => ({ name: f.name, label: f.label })),
+    };
+
+    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.webhookHeaders()) {
+      try {
+        headers = { ...headers, ...JSON.parse(this.webhookHeaders()) };
+      } catch {
+        alert(this.lang() === 'tr' ? 'Geçersiz JSON headers' : 'Invalid JSON headers');
+        return;
+      }
+    }
+
+    fetch(this.webhookUrl(), {
+      method: this.webhookMethod(),
+      headers,
+      body: JSON.stringify(testData),
+    })
+      .then(response => {
+        if (response.ok) {
+          alert(this.lang() === 'tr' ? 'Webhook testi başarılı!' : 'Webhook test successful!');
+        } else {
+          alert(this.lang() === 'tr' ? `Webhook hatası: ${response.status}` : `Webhook error: ${response.status}`);
+        }
+      })
+      .catch(error => {
+        alert(this.lang() === 'tr' ? `Bağlantı hatası: ${error.message}` : `Connection error: ${error.message}`);
+      });
+  }
+
+  sendWebhook(values: Record<string, unknown>): void {
+    if (!this.webhookEnabled() || !this.webhookUrl()) return;
+
+    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.webhookHeaders()) {
+      try {
+        headers = { ...headers, ...JSON.parse(this.webhookHeaders()) };
+      } catch {
+        console.error('Invalid webhook headers JSON');
+        return;
+      }
+    }
+
+    const payload = {
+      formName: this.service.currentForm().name,
+      formId: this.service.currentForm().id,
+      timestamp: new Date().toISOString(),
+      values,
+    };
+
+    fetch(this.webhookUrl(), {
+      method: this.webhookMethod(),
+      headers,
+      body: JSON.stringify(payload),
+    }).catch(error => console.error('Webhook error:', error));
+  }
+
+  // Response Viewer Methods
+  toggleResponseExpand(responseId: string): void {
+    this.expandedResponseId.set(
+      this.expandedResponseId() === responseId ? null : responseId
+    );
+  }
+
+  formatResponseDate(date: Date): string {
+    return new Intl.DateTimeFormat(this.lang() === 'tr' ? 'tr-TR' : 'en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(date));
+  }
+
+  getResponseEntries(values: Record<string, unknown>): Array<{ key: string; value: unknown }> {
+    return Object.entries(values).map(([key, value]) => ({ key, value }));
+  }
+
+  getFieldLabel(fieldName: string): string {
+    const field = this.service.fields().find(f => f.name === fieldName);
+    return field?.label || fieldName;
+  }
+
+  isSignatureValue(value: unknown): boolean {
+    return typeof value === 'string' && value.startsWith('data:image/');
+  }
+
+  formatResponseValue(value: unknown): string {
+    if (value === null || value === undefined) return '-';
+    if (typeof value === 'boolean') return value ? '✓' : '✗';
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  }
+
+  deleteResponse(responseId: string): void {
+    const confirmMsg = this.lang() === 'tr'
+      ? 'Bu yanıtı silmek istediğinize emin misiniz?'
+      : 'Are you sure you want to delete this response?';
+
+    if (confirm(confirmMsg)) {
+      this.formResponses.update(responses =>
+        responses.filter(r => r.id !== responseId)
+      );
+      this.expandedResponseId.set(null);
+    }
+  }
+
+  clearResponses(): void {
+    const confirmMsg = this.lang() === 'tr'
+      ? 'Tüm yanıtları silmek istediğinize emin misiniz?'
+      : 'Are you sure you want to clear all responses?';
+
+    if (confirm(confirmMsg)) {
+      this.formResponses.set([]);
+    }
+  }
+
+  exportResponsesToCSV(): void {
+    const responses = this.formResponses();
+    if (responses.length === 0) return;
+
+    const fields = this.service.fields();
+    const headers = ['ID', 'Timestamp', ...fields.map(f => f.label)];
+
+    const rows = responses.map(response => {
+      const row = [
+        response.id,
+        this.formatResponseDate(response.timestamp),
+        ...fields.map(f => {
+          const value = response.values[f.name];
+          if (this.isSignatureValue(value)) return '[Signature]';
+          return this.formatResponseValue(value);
+        })
+      ];
+      return row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',');
+    });
+
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${this.service.currentForm().name}_responses.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  // Save form response (called when form is submitted in preview)
+  saveFormResponse(): void {
+    const values = this.previewValues();
+    const response = {
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      values: { ...values },
+    };
+
+    this.formResponses.update(responses => [...responses, response]);
+
+    // Send webhook if enabled
+    this.sendWebhook(values);
+
+    // Show success message
+    const msg = this.lang() === 'tr' ? 'Form kaydedildi!' : 'Form saved!';
+    alert(msg);
   }
 }

@@ -298,6 +298,20 @@ export const fieldTypes: FieldTypeConfig[] = [
       { key: 'suffix', label: { tr: 'Son Ek', en: 'Suffix' }, type: 'text' },
     ],
   },
+  {
+    type: 'signature',
+    label: { tr: 'İmza', en: 'Signature' },
+    icon: '✍️',
+    category: 'special',
+    defaultConfig: { required: false, width: 400, height: 150, penColor: '#000000', backgroundColor: '#ffffff' },
+    configOptions: [
+      { key: 'required', label: { tr: 'Zorunlu', en: 'Required' }, type: 'boolean', default: false },
+      { key: 'width', label: { tr: 'Genişlik (px)', en: 'Width (px)' }, type: 'number', default: 400 },
+      { key: 'height', label: { tr: 'Yükseklik (px)', en: 'Height (px)' }, type: 'number', default: 150 },
+      { key: 'penColor', label: { tr: 'Kalem Rengi', en: 'Pen Color' }, type: 'text', default: '#000000' },
+      { key: 'backgroundColor', label: { tr: 'Arka Plan Rengi', en: 'Background Color' }, type: 'text', default: '#ffffff' },
+    ],
+  },
 ];
 
 /**

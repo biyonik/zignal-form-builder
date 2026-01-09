@@ -13,3 +13,6 @@ export * from './repeatable/repeatable-group.component';
 
 // Logic Builder
 export * from './logic-builder/logic-builder.component';
+
+// Signature
+export * from './signature/signature-field.component';
