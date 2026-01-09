@@ -18,18 +18,30 @@ export class PdfExportService {
   private readonly i18n = inject(I18nService);
 
   /**
-   * Export form schema to PDF
+   * Export form schema to PDF (simple version)
+   */
+  exportToPdf(
+    formName: string,
+    fields: FormFieldDef[],
+    values?: Record<string, unknown>
+  ): void {
+    const lang = this.i18n.lang();
+    const htmlContent = this.buildSimpleHtmlContent(formName, fields, lang, values);
+    this.printHtml(htmlContent, formName);
+  }
+
+  /**
+   * Export form schema to PDF with full options
    * Uses a simple HTML-to-PDF approach without external library
    */
-  async exportToPdf(
+  async exportToPdfFull(
     fields: FormFieldDef[],
     groups: FieldGroup[],
-    settings: FormSettings,
+    title: string,
     values?: Record<string, unknown>,
     options: PdfExportOptions = {}
   ): Promise<void> {
     const {
-      title = settings.name || 'Form Export',
       includeValues = true,
       includeConfig = false,
       includeGroups = true
@@ -50,6 +62,143 @@ export class PdfExportService {
 
     // Open print dialog
     this.printHtml(htmlContent, title);
+  }
+
+  /**
+   * Build simple HTML content for PDF (without groups)
+   */
+  private buildSimpleHtmlContent(
+    title: string,
+    fields: FormFieldDef[],
+    lang: 'tr' | 'en',
+    values?: Record<string, unknown>
+  ): string {
+    const styles = this.getStyles();
+    let content = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${title}</title>
+        ${styles}
+      </head>
+      <body>
+        <h1>${title}</h1>
+    `;
+
+    if (fields.length === 0) {
+      content += '<div class="no-fields">No fields defined</div>';
+    } else {
+      content += this.renderFields(fields, lang, values, false);
+    }
+
+    content += `
+        <div class="footer">
+          ${lang === 'tr' ? 'Olusturulma Tarihi' : 'Generated on'}: ${new Date().toLocaleString(lang === 'tr' ? 'tr-TR' : 'en-US')}
+          <br>
+          Zignal Form Builder
+        </div>
+      </body>
+      </html>
+    `;
+
+    return content;
+  }
+
+  /**
+   * Get CSS styles for PDF
+   */
+  private getStyles(): string {
+    return `
+      <style>
+        * { box-sizing: border-box; }
+        body {
+          font-family: 'Segoe UI', Arial, sans-serif;
+          font-size: 12px;
+          line-height: 1.5;
+          color: #333;
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+        h1 {
+          font-size: 24px;
+          color: #e94560;
+          border-bottom: 2px solid #e94560;
+          padding-bottom: 10px;
+          margin-bottom: 20px;
+        }
+        h2 {
+          font-size: 16px;
+          color: #333;
+          background: #f5f5f5;
+          padding: 8px 12px;
+          margin: 20px 0 10px;
+          border-left: 4px solid #e94560;
+        }
+        .field {
+          margin-bottom: 15px;
+          padding: 10px;
+          border: 1px solid #e0e0e0;
+          border-radius: 4px;
+        }
+        .field-label {
+          font-weight: 600;
+          color: #333;
+          margin-bottom: 5px;
+        }
+        .field-label .required {
+          color: #e74c3c;
+        }
+        .field-type {
+          font-size: 11px;
+          color: #888;
+          background: #f0f0f0;
+          padding: 2px 6px;
+          border-radius: 3px;
+          margin-left: 8px;
+        }
+        .field-value {
+          background: #f9f9f9;
+          padding: 8px;
+          border-radius: 3px;
+          margin-top: 5px;
+          word-break: break-word;
+        }
+        .field-value.empty {
+          color: #999;
+          font-style: italic;
+        }
+        .field-config {
+          font-size: 11px;
+          color: #666;
+          margin-top: 8px;
+          padding-top: 8px;
+          border-top: 1px dashed #ddd;
+        }
+        .config-item {
+          display: inline-block;
+          margin-right: 12px;
+        }
+        .no-fields {
+          text-align: center;
+          color: #999;
+          padding: 40px;
+        }
+        .footer {
+          margin-top: 30px;
+          padding-top: 15px;
+          border-top: 1px solid #ddd;
+          font-size: 10px;
+          color: #888;
+          text-align: center;
+        }
+        @media print {
+          body { padding: 0; }
+          .field { page-break-inside: avoid; }
+        }
+      </style>
+    `;
   }
 
   /**
@@ -191,8 +340,14 @@ export class PdfExportService {
       groups.forEach(group => {
         const groupFields = groupMap.get(group.id) || [];
         if (groupFields.length > 0) {
-          const groupName = lang === 'tr' ? group.name?.tr : group.name?.en;
-          content += `<h2>${groupName || group.label || group.id}</h2>`;
+          // Handle both string and object name types
+          let groupName: string;
+          if (typeof group.name === 'object' && group.name !== null) {
+            groupName = (group.name as { tr?: string; en?: string })[lang] || group.label || group.id;
+          } else {
+            groupName = group.name || group.label || group.id;
+          }
+          content += `<h2>${groupName}</h2>`;
           content += this.renderFields(groupFields, lang, values, includeConfig);
         }
       });

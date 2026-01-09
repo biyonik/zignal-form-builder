@@ -96,7 +96,7 @@ import { SelectOption, getCurrencySymbol, slugify } from './field-renderer.model
             [value]="stringValue()"
             rows="4"
             class="json-textarea"
-            [placeholder]="'{' + '\"key\": \"value\"' + '}'"
+            placeholder='{"key": "value"}'
             [disabled]="disabled"
             (input)="onInput($event)"
             (blur)="onBlur()"
