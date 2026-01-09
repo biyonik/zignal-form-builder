@@ -407,7 +407,9 @@ export const sampleTemplates = [
       { type: 'textarea', name: 'bio', label: 'Biyografi / Bio', groupId: 'professional', config: { required: false, rows: 4, maxLength: 500, hint: 'Kendinizi kısaca tanıtın (max 500 karakter)' } },
       { type: 'number', name: 'yearsOfExperience', label: 'Deneyim Yılı / Years of Experience', groupId: 'professional', config: { min: 0, max: 50 } },
       { type: 'money', name: 'expectedSalary', label: 'Beklenen Maaş / Expected Salary', groupId: 'professional', config: { currency: 'TRY', min: 0 } },
-      { type: 'percent', name: 'remoteWorkPreference', label: 'Uzaktan Çalışma Tercihi / Remote Work Preference', groupId: 'professional', config: { min: 0, max: 100 } },
+      { type: 'calculated', name: 'annualSalary', label: 'Yıllık Maaş / Annual Salary', groupId: 'professional', config: { formula: '{expectedSalary} * 12', decimals: 0, prefix: '₺' } },
+      { type: 'slider', name: 'remoteWorkPreference', label: 'Uzaktan Çalışma Tercihi / Remote Work', groupId: 'professional', config: { min: 0, max: 100, step: 10, showValue: true, unit: '%' } },
+      { type: 'slider', name: 'workLifeBalance', label: 'İş-Yaşam Dengesi / Work-Life Balance', groupId: 'professional', config: { min: 1, max: 10, step: 1, showValue: true } },
       { type: 'tags', name: 'skills', label: 'Yetenekler / Skills', groupId: 'professional', config: { max: 10 } },
 
       // === Group 5: Additional Info ===
