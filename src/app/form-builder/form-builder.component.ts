@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { FormBuilderService } from './services/form-builder.service';
 import { CodeGeneratorService } from './services/code-generator.service';
 import { PdfExportService } from './services/pdf-export.service';
+import { ZignalFormService } from './services/zignal-form.service';
 import {
   FormFieldDef,
   FieldGroup,
@@ -25,11 +26,12 @@ import { WizardPreviewComponent } from './components/wizard/wizard-preview.compo
 import { RepeatableGroupComponent } from './components/repeatable/repeatable-group.component';
 import { LogicBuilderComponent } from './components/logic-builder/logic-builder.component';
 import { SignatureFieldComponent } from './components/signature/signature-field.component';
+import { ZignalPreviewComponent } from './components/zignal-preview/zignal-preview.component';
 
 @Component({
   selector: 'app-form-builder',
   standalone: true,
-  imports: [CommonModule, FormsModule, WizardPreviewComponent, RepeatableGroupComponent, LogicBuilderComponent, SignatureFieldComponent],
+  imports: [CommonModule, FormsModule, WizardPreviewComponent, RepeatableGroupComponent, LogicBuilderComponent, SignatureFieldComponent, ZignalPreviewComponent],
   template: `
     <div class="builder-container" [class.light-theme]="service.theme() === 'light'">
       <!-- Header -->
@@ -568,6 +570,15 @@ import { SignatureFieldComponent } from './components/signature/signature-field.
               <div class="preview-header">
                 <h4>{{ t('formPreview') }}</h4>
                 <div class="preview-actions">
+                  <!-- Zignal Preview Toggle -->
+                  <label class="zignal-toggle" [class.active]="zignalPreviewMode()">
+                    <input
+                      type="checkbox"
+                      [checked]="zignalPreviewMode()"
+                      (change)="zignalPreviewMode.set(getChecked($event))"
+                    />
+                    <span>⚡ Zignal</span>
+                  </label>
                   <!-- Device Preview Selector -->
                   <div class="device-selector">
                     <button
@@ -589,14 +600,16 @@ import { SignatureFieldComponent } from './components/signature/signature-field.
                       title="Desktop (100%)"
                     >🖥️</button>
                   </div>
-                  <label class="wizard-toggle">
-                    <input
-                      type="checkbox"
-                      [checked]="wizardMode()"
-                      (change)="wizardMode.set(getChecked($event))"
-                    />
-                    <span>🧙 {{ t('wizardMode') }}</span>
-                  </label>
+                  @if (!zignalPreviewMode()) {
+                    <label class="wizard-toggle">
+                      <input
+                        type="checkbox"
+                        [checked]="wizardMode()"
+                        (change)="wizardMode.set(getChecked($event))"
+                      />
+                      <span>🧙 {{ t('wizardMode') }}</span>
+                    </label>
+                  }
                   <button class="btn-action" (click)="exportToPdf()">
                     📄 PDF
                   </button>
@@ -606,7 +619,18 @@ import { SignatureFieldComponent } from './components/signature/signature-field.
                 </div>
               </div>
 
-              @if (service.fields().length > 0 && !wizardMode()) {
+              <!-- Zignal Preview Mode -->
+              @if (zignalPreviewMode() && service.fields().length > 0) {
+                <app-zignal-preview
+                  [device]="previewDevice()"
+                  [showValidationSummary]="true"
+                  [enablePersistence]="false"
+                  (submitted)="onZignalFormSubmit($event)"
+                />
+              }
+
+              <!-- Normal Preview Mode -->
+              @if (!zignalPreviewMode() && service.fields().length > 0 && !wizardMode()) {
                 <div class="preview-device-frame" [class]="'device-' + previewDevice()">
                   <div class="preview-form">
                   <!-- Repeatable Groups -->
@@ -2596,6 +2620,36 @@ import { SignatureFieldComponent } from './components/signature/signature-field.
       cursor: pointer;
     }
 
+    /* Zignal Toggle */
+    .zignal-toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 5px 12px;
+      background: var(--bg-tertiary);
+      border-radius: 5px;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .zignal-toggle:hover {
+      background: #4f46e5;
+      color: #fff;
+    }
+
+    .zignal-toggle.active {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      border-color: #6366f1;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    }
+
+    .zignal-toggle input {
+      cursor: pointer;
+    }
+
     /* Logic Content */
     .logic-content {
       padding: 0 !important;
@@ -3383,6 +3437,10 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
   wizardMode = signal(false);
   wizardConfig: WizardConfig = DEFAULT_WIZARD_CONFIG;
 
+  // Zignal preview mode
+  zignalPreviewMode = signal(false);
+  zignalService = inject(ZignalFormService);
+
   // Device preview state
   previewDevice = signal<'mobile' | 'tablet' | 'desktop'>('desktop');
 
@@ -3514,6 +3572,8 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
       logic: 'Mantık',
       wizardMode: 'Sihirbaz Modu',
       wizardNeedsGroups: 'Sihirbaz modu için grup eklemeniz gerekiyor',
+      zignalPreview: 'Zignal Önizleme',
+      zignalMode: 'Zignal Modu',
       repeatableGroup: 'Tekrarlanabilir Grup',
       minItems: 'Minimum Öğe',
       maxItems: 'Maksimum Öğe',
@@ -3623,6 +3683,8 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
       logic: 'Logic',
       wizardMode: 'Wizard Mode',
       wizardNeedsGroups: 'You need to add groups for wizard mode',
+      zignalPreview: 'Zignal Preview',
+      zignalMode: 'Zignal Mode',
       repeatableGroup: 'Repeatable Group',
       minItems: 'Minimum Items',
       maxItems: 'Maximum Items',
@@ -4731,5 +4793,31 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
     // Show success message
     const msg = this.lang() === 'tr' ? 'Form kaydedildi!' : 'Form saved!';
     alert(msg);
+  }
+
+  // Zignal form submit handler
+  onZignalFormSubmit(values: Record<string, unknown>): void {
+    console.log('Zignal form submitted with values:', values);
+
+    // Store response
+    const response = {
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      values: { ...values },
+    };
+
+    this.formResponses.update(responses => [...responses, response]);
+
+    // Send webhook if enabled
+    this.sendWebhook(values);
+
+    // Show success message
+    const msg = this.lang() === 'tr' ? 'Zignal formu başarıyla gönderildi!' : 'Zignal form submitted successfully!';
+    alert(msg);
+  }
+
+  // Export Zignal schema
+  exportZignalSchema(): string {
+    return this.zignalService.exportZignalSchema();
   }
 }

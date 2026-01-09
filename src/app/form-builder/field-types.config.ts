@@ -6,7 +6,7 @@ export interface FieldTypeConfig {
   type: string;
   label: { tr: string; en: string };
   icon: string;
-  category: 'basic' | 'selection' | 'advanced' | 'special';
+  category: 'basic' | 'selection' | 'advanced' | 'special' | 'turkey';
   defaultConfig: Record<string, unknown>;
   configOptions: ConfigOption[];
 }
@@ -312,6 +312,70 @@ export const fieldTypes: FieldTypeConfig[] = [
       { key: 'backgroundColor', label: { tr: 'Arka Plan Rengi', en: 'Background Color' }, type: 'text', default: '#ffffff' },
     ],
   },
+
+  // ============================================
+  // Turkish Validator Fields (Zignal)
+  // ============================================
+  {
+    type: 'tckn',
+    label: { tr: 'TC Kimlik No', en: 'Turkish ID' },
+    icon: '🪪',
+    category: 'turkey',
+    defaultConfig: { required: false },
+    configOptions: [
+      { key: 'required', label: { tr: 'Zorunlu', en: 'Required' }, type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'vkn',
+    label: { tr: 'Vergi Kimlik No', en: 'Tax ID (VKN)' },
+    icon: '🏢',
+    category: 'turkey',
+    defaultConfig: { required: false },
+    configOptions: [
+      { key: 'required', label: { tr: 'Zorunlu', en: 'Required' }, type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'iban',
+    label: { tr: 'IBAN', en: 'IBAN' },
+    icon: '🏦',
+    category: 'turkey',
+    defaultConfig: { required: false },
+    configOptions: [
+      { key: 'required', label: { tr: 'Zorunlu', en: 'Required' }, type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'turkishPhone',
+    label: { tr: 'TR Telefon', en: 'Turkish Phone' },
+    icon: '📞',
+    category: 'turkey',
+    defaultConfig: { required: false },
+    configOptions: [
+      { key: 'required', label: { tr: 'Zorunlu', en: 'Required' }, type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'turkishPlate',
+    label: { tr: 'Plaka', en: 'License Plate' },
+    icon: '🚗',
+    category: 'turkey',
+    defaultConfig: { required: false },
+    configOptions: [
+      { key: 'required', label: { tr: 'Zorunlu', en: 'Required' }, type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'postalCode',
+    label: { tr: 'Posta Kodu', en: 'Postal Code' },
+    icon: '📮',
+    category: 'turkey',
+    defaultConfig: { required: false },
+    configOptions: [
+      { key: 'required', label: { tr: 'Zorunlu', en: 'Required' }, type: 'boolean', default: false },
+    ],
+  },
 ];
 
 /**
@@ -323,6 +387,7 @@ export const fieldCategories = [
   { id: 'selection', label: { tr: 'Seçim Alanları', en: 'Selection Fields' }, icon: '📋' },
   { id: 'advanced', label: { tr: 'Gelişmiş Alanlar', en: 'Advanced Fields' }, icon: '⚙️' },
   { id: 'special', label: { tr: 'Özel Alanlar', en: 'Special Fields' }, icon: '✨' },
+  { id: 'turkey', label: { tr: 'Türkiye Alanları', en: 'Turkey Fields' }, icon: '🇹🇷' },
 ];
 
 /**
