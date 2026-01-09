@@ -26,10 +26,10 @@ import { I18nService } from '../../services/i18n.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="repeatable-group">
-      <div class="group-header" [style.borderColor]="group.color">
+      <div class="group-header" [style.borderColor]="getGroupColor()">
         <div class="group-title">
-          <span class="group-icon" [style.background]="group.color">
-            {{ group.icon || '📋' }}
+          <span class="group-icon" [style.background]="getGroupColor()">
+            {{ getGroupIcon() }}
           </span>
           <h4>{{ getGroupName() }}</h4>
           <span class="instance-count">
@@ -303,6 +303,14 @@ export class RepeatableGroupComponent {
       return this.group.name[this.i18n.lang()];
     }
     return this.group.label || this.group.id;
+  }
+
+  getGroupColor(): string {
+    return (this.group as any).color || '#e94560';
+  }
+
+  getGroupIcon(): string {
+    return (this.group as any).icon || '📋';
   }
 
   addInstance(): void {

@@ -159,7 +159,7 @@ export class I18nService {
     undo: { tr: 'Geri Al', en: 'Undo' },
     redo: { tr: 'Yinele', en: 'Redo' },
     fields: { tr: 'Alanlar', en: 'Fields' },
-    select: { tr: 'Sec', en: 'Select' },
+    selectAction: { tr: 'Sec', en: 'Select' },
     value: { tr: 'Deger', en: 'Value' },
     label: { tr: 'Etiket', en: 'Label' },
     type: { tr: 'Tip', en: 'Type' },

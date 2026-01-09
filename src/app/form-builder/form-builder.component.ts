@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FormBuilderService } from './services/form-builder.service';
 import { CodeGeneratorService } from './services/code-generator.service';
+import { PdfExportService } from './services/pdf-export.service';
 import {
   FormFieldDef,
   FieldGroup,
@@ -12,17 +13,22 @@ import {
   ActiveTab,
   OPERATOR_LABELS,
 } from './models/form-builder.types';
+import { WizardStep, WizardConfig, DEFAULT_WIZARD_CONFIG } from './models/wizard.types';
+import { RepeatableGroupConfig, DEFAULT_REPEATABLE_CONFIG } from './models/repeatable.types';
 import {
   fieldTypes,
   fieldCategories,
   sampleTemplates,
   FieldTypeConfig,
 } from './field-types.config';
+import { WizardPreviewComponent } from './components/wizard/wizard-preview.component';
+import { RepeatableGroupComponent } from './components/repeatable/repeatable-group.component';
+import { LogicBuilderComponent } from './components/logic-builder/logic-builder.component';
 
 @Component({
   selector: 'app-form-builder',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, WizardPreviewComponent, RepeatableGroupComponent, LogicBuilderComponent],
   template: `
     <div class="builder-container" [class.light-theme]="service.theme() === 'light'">
       <!-- Header -->
@@ -213,6 +219,9 @@ import {
             </button>
             <button class="tab-btn" [class.active]="activeTab() === 'preview'" (click)="activeTab.set('preview')">
               👁️ {{ t('preview') }}
+            </button>
+            <button class="tab-btn" [class.active]="activeTab() === 'logic'" (click)="activeTab.set('logic')">
+              🔗 {{ t('logic') }}
             </button>
             <button class="tab-btn" [class.active]="activeTab() === 'json'" (click)="activeTab.set('json')">
               {{ '{' }} {{ '}' }} Export
@@ -509,12 +518,25 @@ import {
             <div class="tab-content preview-content">
               <div class="preview-header">
                 <h4>{{ t('formPreview') }}</h4>
-                <button class="btn-action" (click)="openFullPreview()">
-                  🔍 {{ t('fullscreen') }}
-                </button>
+                <div class="preview-actions">
+                  <label class="wizard-toggle">
+                    <input
+                      type="checkbox"
+                      [checked]="wizardMode()"
+                      (change)="wizardMode.set(getChecked($event))"
+                    />
+                    <span>🧙 {{ t('wizardMode') }}</span>
+                  </label>
+                  <button class="btn-action" (click)="exportToPdf()">
+                    📄 PDF
+                  </button>
+                  <button class="btn-action" (click)="openFullPreview()">
+                    🔍 {{ t('fullscreen') }}
+                  </button>
+                </div>
               </div>
 
-              @if (service.fields().length > 0) {
+              @if (service.fields().length > 0 && !wizardMode()) {
                 <div class="preview-form">
                   @for (field of service.fields(); track field.id) {
                     @if (isFieldVisible(field)) {
@@ -811,11 +833,39 @@ import {
                     }
                   </div>
                 </div>
-              } @else {
+              }
+
+              <!-- Wizard Mode Preview -->
+              @if (wizardMode() && service.groups().length > 0) {
+                <app-wizard-preview
+                  [fields]="service.fields()"
+                  [config]="getWizardConfig()"
+                  (complete)="onWizardComplete($event)"
+                />
+              } @else if (wizardMode() && service.groups().length === 0) {
+                <div class="no-selection">
+                  <p>{{ t('wizardNeedsGroups') }}</p>
+                  <button class="btn-action" (click)="addGroup()">
+                    ➕ {{ t('addGroup') }}
+                  </button>
+                </div>
+              }
+
+              @if (!wizardMode() && service.fields().length === 0) {
                 <div class="no-selection">
                   <p>{{ t('addFieldsToPreview') }}</p>
                 </div>
               }
+            </div>
+          }
+
+          <!-- Logic Builder Tab -->
+          @if (activeTab() === 'logic') {
+            <div class="tab-content logic-content">
+              <app-logic-builder
+                [fields]="service.fields()"
+                (rulesChange)="onLogicRulesChange($event)"
+              />
             </div>
           }
 
@@ -2210,10 +2260,44 @@ import {
       justify-content: space-between;
       align-items: center;
       margin-bottom: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
     .preview-header h4 {
       margin: 0;
+    }
+
+    .preview-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .wizard-toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 5px 10px;
+      background: var(--bg-tertiary);
+      border-radius: 5px;
+      transition: all 0.2s;
+    }
+
+    .wizard-toggle:hover {
+      background: var(--accent);
+    }
+
+    .wizard-toggle input {
+      cursor: pointer;
+    }
+
+    /* Logic Content */
+    .logic-content {
+      padding: 0 !important;
     }
 
     .preview-form {
@@ -2683,14 +2767,19 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
   // Services
   service = inject(FormBuilderService);
   codeGenerator = inject(CodeGeneratorService);
+  pdfExport = inject(PdfExportService);
 
   // State
-  activeTab = signal<ActiveTab>('config');
+  activeTab = signal<ActiveTab | 'logic'>('config');
   exportFormat = signal<ExportFormat>('json');
   showShortcuts = signal(false);
   showFullPreview = signal(false);
   showImportUrl = signal(false);
   showCrossValidatorModal = signal(false);
+
+  // Wizard state
+  wizardMode = signal(false);
+  wizardConfig: WizardConfig = DEFAULT_WIZARD_CONFIG;
 
   // Preview state
   previewValues = signal<Record<string, unknown>>({});
@@ -2800,6 +2889,10 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
       fieldsMatch: 'Alanlar Eşleşmeli',
       atLeastOne: 'En Az Biri',
       custom: 'Özel',
+      logic: 'Mantık',
+      wizardMode: 'Sihirbaz Modu',
+      wizardNeedsGroups: 'Sihirbaz modu için grup eklemeniz gerekiyor',
+      repeatableGroup: 'Tekrarlanabilir Grup',
     },
     en: {
       subtitle: 'Drag & Drop Form Design',
@@ -2876,6 +2969,10 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
       fieldsMatch: 'Fields Match',
       atLeastOne: 'At Least One',
       custom: 'Custom',
+      logic: 'Logic',
+      wizardMode: 'Wizard Mode',
+      wizardNeedsGroups: 'You need to add groups for wizard mode',
+      repeatableGroup: 'Repeatable Group',
     },
   };
 
@@ -3660,5 +3757,55 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
   private generateFieldName(type: string): string {
     const count = this.service.fields().filter(f => f.type === type).length;
     return `${type}${count > 0 ? count + 1 : ''}`;
+  }
+
+  // Wizard Methods
+  getWizardConfig(): WizardConfig {
+    const steps: WizardStep[] = this.service.groups().map((group, index) => ({
+      id: group.id,
+      title: typeof group.name === 'object' ? group.name : { tr: group.label || group.id, en: group.label || group.id },
+      description: group.description ? { tr: group.description, en: group.description } : undefined,
+      icon: (group as any).icon,
+      fields: this.service.fields().filter(f => f.groupId === group.id).map(f => f.name),
+      order: index
+    }));
+
+    return {
+      ...this.wizardConfig,
+      enabled: true,
+      steps
+    };
+  }
+
+  onWizardComplete(values: Record<string, unknown>): void {
+    console.log('Wizard completed with values:', values);
+    const msg = this.lang() === 'tr' ? 'Form başarıyla tamamlandı!' : 'Form completed successfully!';
+    alert(msg);
+  }
+
+  // Logic Builder Methods
+  onLogicRulesChange(rules: { id: string; type: string; targetField: string; condition: ConditionalRule }[]): void {
+    console.log('Logic rules changed:', rules);
+    // Apply rules to fields
+    rules.forEach(rule => {
+      const field = this.service.fields().find(f => f.name === rule.targetField);
+      if (field) {
+        // Update field config based on rule type
+        const configUpdate: Record<string, ConditionalRule> = {};
+        configUpdate[rule.type] = rule.condition;
+        this.service.updateField(field.id, {
+          config: { ...field.config, ...configUpdate }
+        });
+      }
+    });
+  }
+
+  // PDF Export
+  exportToPdf(): void {
+    const formName = this.service.currentForm().name;
+    const fields = this.service.fields();
+    const values = this.previewValues();
+
+    this.pdfExport.exportToPdf(formName, fields, values);
   }
 }
