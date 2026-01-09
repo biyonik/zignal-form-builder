@@ -270,6 +270,34 @@ export const fieldTypes: FieldTypeConfig[] = [
       { key: 'required', label: { tr: 'Zorunlu', en: 'Required' }, type: 'boolean', default: false },
     ],
   },
+  {
+    type: 'slider',
+    label: { tr: 'Kaydırıcı', en: 'Slider' },
+    icon: '🎚️',
+    category: 'advanced',
+    defaultConfig: { required: false, min: 0, max: 100, step: 1, showValue: true },
+    configOptions: [
+      { key: 'required', label: { tr: 'Zorunlu', en: 'Required' }, type: 'boolean', default: false },
+      { key: 'min', label: { tr: 'Minimum', en: 'Minimum' }, type: 'number', default: 0 },
+      { key: 'max', label: { tr: 'Maksimum', en: 'Maximum' }, type: 'number', default: 100 },
+      { key: 'step', label: { tr: 'Adım', en: 'Step' }, type: 'number', default: 1 },
+      { key: 'showValue', label: { tr: 'Değeri Göster', en: 'Show Value' }, type: 'boolean', default: true },
+      { key: 'unit', label: { tr: 'Birim', en: 'Unit' }, type: 'text' },
+    ],
+  },
+  {
+    type: 'calculated',
+    label: { tr: 'Hesaplanan Alan', en: 'Calculated Field' },
+    icon: '🧮',
+    category: 'special',
+    defaultConfig: { formula: '', decimals: 2 },
+    configOptions: [
+      { key: 'formula', label: { tr: 'Formül', en: 'Formula' }, type: 'text' },
+      { key: 'decimals', label: { tr: 'Ondalık Basamak', en: 'Decimal Places' }, type: 'number', default: 2 },
+      { key: 'prefix', label: { tr: 'Ön Ek', en: 'Prefix' }, type: 'text' },
+      { key: 'suffix', label: { tr: 'Son Ek', en: 'Suffix' }, type: 'text' },
+    ],
+  },
 ];
 
 /**
