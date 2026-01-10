@@ -7,6 +7,7 @@ import {
   computed,
   signal,
   effect,
+  untracked,
   OnInit,
   OnDestroy,
 } from '@angular/core';
@@ -310,6 +311,7 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
   });
 
   // ✅ TYPE FIX: FormSettings layout now matches FormRendererConfig
+  // ✅ VALIDATION FIX: Properly disable submit button when form is invalid
   readonly rendererConfig = computed<FormRendererConfig>(() => {
     const settings = this.builderService.settings();
     const lang = this.lang();
@@ -336,6 +338,27 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
     }
   }, { allowSignalWrites: true });
 
+  // ✅ VALIDATION FIX: Trigger validation whenever form values change
+  private validationEffect = effect(async (onCleanup) => {
+    const formState = this.formState();
+
+    if (formState && this.initialized()) {
+      // Track value changes
+      const values = formState.values();
+
+      // Trigger validation on every change
+      // This ensures submit button is always in correct state
+      // Using setTimeout to avoid synchronous signal updates during effect
+      const timeoutId = setTimeout(() => {
+        this.zignalService.validateAll().catch(err => {
+          console.warn('Validation error:', err);
+        });
+      }, 0);
+
+      onCleanup(() => clearTimeout(timeoutId));
+    }
+  }, { allowSignalWrites: true });
+
   ngOnInit(): void {
     this.initializeForm();
   }
@@ -356,11 +379,28 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
     }
 
     this.initialized.set(true);
+
+    // ✅ FIX: Run initial validation to set proper form state
+    // This ensures submit button is disabled if fields are required but empty
+    setTimeout(() => {
+      if (this.builderService.fields().length > 0) {
+        this.zignalService.validateAll().catch(err => {
+          console.warn('Initial validation error:', err);
+        });
+      }
+    }, 0);
   }
 
   private rebuildForm(): void {
     const currentValues = this.zignalService.getValues();
     this.zignalService.createFormState(currentValues);
+
+    // ✅ FIX: Re-validate after rebuilding to ensure correct form state
+    setTimeout(() => {
+      this.zignalService.validateAll().catch(err => {
+        console.warn('Rebuild validation error:', err);
+      });
+    }, 0);
   }
 
   private getFieldLabel(fieldName: string): string {
