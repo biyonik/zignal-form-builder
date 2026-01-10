@@ -309,21 +309,14 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
       }));
   });
 
+  // ✅ TYPE FIX: FormSettings layout now matches FormRendererConfig
   readonly rendererConfig = computed<FormRendererConfig>(() => {
     const settings = this.builderService.settings();
     const lang = this.lang();
 
-    // Map FormSettings layout to Zignal FormRendererConfig layout
-    // FormSettings: 'vertical' | 'horizontal' | 'inline'
-    // FormRendererConfig: 'vertical' | 'horizontal' | 'grid'
-    let layout: 'vertical' | 'horizontal' | 'grid' = 'vertical';
-    if (settings.layout === 'horizontal' || settings.layout === 'inline') {
-      layout = 'horizontal';
-    }
-
     return {
-      layout,
-      columns: 1,
+      layout: settings.layout,  // Direct mapping - types now match!
+      columns: settings.layout === 'grid' ? 2 : 1,  // Use 2 columns for grid layout
       showSubmitButton: true,
       showResetButton: settings.showReset,
       submitText: settings.submitButtonText[lang],

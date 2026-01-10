@@ -55,6 +55,9 @@ import {
   FormPersistence,
 } from '@biyonik/zignal';
 
+// Safe expression evaluator (replaces dangerous new Function())
+import { Parser } from 'expr-eval';
+
 import { FormBuilderService } from './form-builder.service';
 import { FormFieldDef, FieldGroup, CrossValidatorDef } from '../models/form-builder.types';
 
@@ -390,14 +393,20 @@ export class ZignalFormService {
             validator.fields,
             (values: FormDataType) => {
               try {
-                const fn = new Function('values', `return ${validator.customExpression}`);
-                return fn(values) === true ? null : message;
-              } catch {
+                // ✅ SECURITY FIX: Use safe expression evaluator instead of new Function()
+                const parser = new Parser();
+                const expr = validator.customExpression || 'true';
+                const result = parser.evaluate(expr, { values });
+                // Result can be boolean or truthy value
+                return result ? null : message;
+              } catch (error) {
+                console.warn(`Custom validator "${validator.name}" expression evaluation failed:`, error);
                 return message;
               }
             }
           );
         }
+        console.warn(`Custom validator "${validator.name}" has no expression`);
         return null;
 
       default:
@@ -476,14 +485,20 @@ export class ZignalFormService {
 
     this._persistence.set(persistence);
 
+    // ✅ NULL SAFETY FIX: Check formState once and reuse
+    const formState = this._formState();
+    if (!formState) {
+      console.warn('Cannot enable persistence: formState is null');
+      return;
+    }
+
     // Load saved data if exists
     const saved = persistence.load();
-    if (saved && this._formState()) {
-      this._formState()!.patchValues(saved);
+    if (saved) {
+      formState.patchValues(saved);
     }
 
     // Enable auto-save
-    const formState = this._formState();
     if (formState) {
       persistence.enableAutoSave(formState.values);
     }

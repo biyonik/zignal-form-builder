@@ -298,11 +298,16 @@ export class RepeatableGroupComponent {
     }
   }
 
+  // ✅ TYPE FIX: Now works correctly with updated FieldGroup type
   getGroupName(): string {
     if (typeof this.group.name === 'object') {
       return this.group.name[this.i18n.lang()];
     }
-    return this.group.label || this.group.id;
+    // If label is also bilingual, handle it
+    if (typeof this.group.label === 'object') {
+      return this.group.label[this.i18n.lang()];
+    }
+    return this.group.label || this.group.name || this.group.id;
   }
 
   getGroupColor(): string {

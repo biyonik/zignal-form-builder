@@ -83,18 +83,43 @@ ${formStateCode}
   /**
    * TR: Import ifadelerini olustur
    * EN: Generate import statements
+   * ✅ CODE GEN FIX: Add GroupField and Turkish validator imports
    */
   private generateImports(form: FormDefinition): string {
     const fieldTypes = new Set(form.fields.map(f => this.getFieldClass(f.type)));
     const imports = ['FormSchema', 'FormState', ...Array.from(fieldTypes)];
 
-    // Add cross-field validator types if needed
-    if (form.crossValidators.length > 0) {
-      imports.push('CrossFieldValidator');
+    // ✅ FIX: Add GroupField if there are groups
+    if (form.groups.length > 0) {
+      imports.push('GroupField');
     }
 
+    // ✅ FIX: Add cross-field validator types if needed
+    if (form.crossValidators.length > 0) {
+      imports.push('CrossFieldValidatorDef');
+      imports.push('CrossValidators');
+    }
+
+    // ✅ FIX: Add Turkish validator imports if needed
+    const turkishFieldTypes = ['tckn', 'vkn', 'iban', 'turkishPhone', 'turkishPlate', 'postalCode'];
+    const hasTurkishFields = form.fields.some(f => turkishFieldTypes.includes(f.type));
+    const validatorImports: string[] = [];
+
+    if (hasTurkishFields) {
+      form.fields.forEach(f => {
+        if (f.type === 'tckn') validatorImports.push('isValidTCKN');
+        if (f.type === 'vkn') validatorImports.push('isValidVKN');
+        if (f.type === 'iban') validatorImports.push('isValidTurkishIBAN');
+        if (f.type === 'turkishPhone') validatorImports.push('isValidTurkishPhone');
+        if (f.type === 'turkishPlate') validatorImports.push('isValidTurkishPlate');
+        if (f.type === 'postalCode') validatorImports.push('isValidTurkishPostalCode');
+      });
+    }
+
+    const allImports = [...imports, ...Array.from(new Set(validatorImports))];
+
     return `import {
-  ${imports.join(',\n  ')},
+  ${allImports.join(',\n  ')},
 } from '@biyonik/zignal';`;
   }
 
@@ -162,9 +187,28 @@ ${schemaContent}
    * TR: Alan kodu olustur
    * EN: Generate field code
    */
+  /**
+   * ✅ CODE GEN FIX: Add custom validators for Turkish fields
+   */
   private generateFieldCode(field: FormFieldDef): string {
     const fieldClass = this.getFieldClass(field.type);
     const config = this.generateFieldConfig(field);
+
+    // ✅ FIX: Add Turkish validator custom validation
+    const turkishValidators: Record<string, string> = {
+      tckn: 'isValidTCKN',
+      vkn: 'isValidVKN',
+      iban: 'isValidTurkishIBAN',
+      turkishPhone: 'isValidTurkishPhone',
+      turkishPlate: 'isValidTurkishPlate',
+      postalCode: 'isValidTurkishPostalCode',
+    };
+
+    if (turkishValidators[field.type]) {
+      const validatorName = turkishValidators[field.type];
+      const validatorCode = `, {\n      customValidator: (value) => {\n        if (!value) return null;\n        return ${validatorName}(value) ? null : 'Geçersiz ${field.type}';\n      }\n    }`;
+      return `  ${field.name}: new ${fieldClass}('${field.name}', '${this.escapeString(field.label)}'${config}${validatorCode}),`;
+    }
 
     return `  ${field.name}: new ${fieldClass}('${field.name}', '${this.escapeString(field.label)}'${config}),`;
   }
@@ -330,39 +374,53 @@ ${validators}`;
   /**
    * TR: Tek cross-field validator kodu
    * EN: Single cross-field validator code
+   * ✅ CODE GEN FIX: Use CrossFieldValidatorDef and CrossValidators helpers
    */
   private generateCrossValidatorCode(validator: CrossValidatorDef, interfaceName: string): string {
     const fieldsStr = validator.fields.map(f => `'${f}'`).join(', ');
+    const messageTr = this.escapeString(validator.message.tr);
+    const messageEn = this.escapeString(validator.message.en);
 
-    let validateFn: string;
+    let code: string;
 
     switch (validator.type) {
       case 'fieldsMatch':
-        validateFn = `(values) => values.${validator.fields[0]} !== values.${validator.fields[1]}
-      ? '${this.escapeString(validator.message.tr)}'
-      : null`;
+        code = `export const ${this.camelCase(validator.name)}Validator = CrossValidators.fieldsMatch<${interfaceName}>(
+  '${validator.fields[0]}',
+  '${validator.fields[1]}',
+  { tr: '${messageTr}', en: '${messageEn}' }
+);`;
         break;
+
       case 'atLeastOne':
-        const checks = validator.fields.map(f => `values.${f}`).join(' || ');
-        validateFn = `(values) => !(${checks})
-      ? '${this.escapeString(validator.message.tr)}'
-      : null`;
+        code = `export const ${this.camelCase(validator.name)}Validator = CrossValidators.atLeastOne<${interfaceName}>(
+  [${fieldsStr}],
+  { tr: '${messageTr}', en: '${messageEn}' }
+);`;
         break;
+
       case 'custom':
-        validateFn = `(values) => {
-    ${validator.customExpression || '// Custom logic here'}
-    return null;
-  }`;
+        const expr = validator.customExpression || '// Custom validation logic here\nreturn true';
+        code = `export const ${this.camelCase(validator.name)}Validator = CrossValidators.custom<${interfaceName}>(
+  '${validator.name}',
+  [${fieldsStr}],
+  (values) => {
+    // Custom validation logic
+    ${expr}
+    return null; // Return null if valid, error message if invalid
+  }
+);`;
         break;
+
       default:
-        validateFn = '(values) => null';
+        code = `export const ${this.camelCase(validator.name)}Validator = CrossValidators.custom<${interfaceName}>(
+  '${validator.name}',
+  [${fieldsStr}],
+  (values) => null
+);`;
     }
 
-    return `export const ${this.camelCase(validator.name)}Validator: CrossFieldValidator<${interfaceName}> = {
-  name: '${validator.name}',
-  fields: [${fieldsStr}],
-  validate: ${validateFn}
-};`;
+    return code;
   }
 
   /**
@@ -487,11 +545,24 @@ export function createFormState(): FormState<${interfaceName}> {
   }
 
   /**
-   * TR: String escape
-   * EN: Escape string
+   * TR: String escape (güvenlik düzeltmesi ile)
+   * EN: Escape string (with security fix)
+   * ✅ SECURITY FIX: Comprehensive string escaping to prevent XSS
    */
   private escapeString(str: string): string {
-    return str.replace(/'/g, "\\'").replace(/\n/g, '\\n');
+    if (!str || typeof str !== 'string') {
+      return '';
+    }
+
+    return str
+      .replace(/\\/g, '\\\\')   // Backslash (must be first!)
+      .replace(/'/g, "\\'")     // Single quote
+      .replace(/"/g, '\\"')     // Double quote
+      .replace(/\n/g, '\\n')    // Newline
+      .replace(/\r/g, '\\r')    // Carriage return
+      .replace(/\t/g, '\\t')    // Tab
+      .replace(/\f/g, '\\f')    // Form feed
+      .replace(/\v/g, '\\v');   // Vertical tab
   }
 
   /**
