@@ -734,4 +734,113 @@ export class FormBuilderService {
     this._language.update(l => l === 'tr' ? 'en' : 'tr');
     this.saveToStorage();
   }
+
+  // ============================================
+  // ✅ NEW FEATURE: Wizard/Multi-step Support
+  // ============================================
+
+  enableWizard(config: import('../models/wizard.types').WizardConfig): void {
+    this.saveSnapshot();
+    this._currentForm.update(form => ({
+      ...form,
+      wizard: { ...config, enabled: true },
+      updatedAt: new Date(),
+    }));
+    this.saveToStorage();
+  }
+
+  disableWizard(): void {
+    this.saveSnapshot();
+    this._currentForm.update(form => ({
+      ...form,
+      wizard: undefined,
+      updatedAt: new Date(),
+    }));
+    this.saveToStorage();
+  }
+
+  updateWizardConfig(config: Partial<import('../models/wizard.types').WizardConfig>): void {
+    const current = this._currentForm().wizard;
+    if (!current) {
+      console.warn('Cannot update wizard config: wizard is not enabled');
+      return;
+    }
+
+    this.saveSnapshot();
+    this._currentForm.update(form => ({
+      ...form,
+      wizard: { ...current, ...config },
+      updatedAt: new Date(),
+    }));
+    this.saveToStorage();
+  }
+
+  // ============================================
+  // ✅ NEW FEATURE: Repeatable Groups Support
+  // ============================================
+
+  enableGroupRepeatable(groupId: string, config: import('../models/repeatable.types').RepeatableGroupConfig): void {
+    const group = this._currentForm().groups.find(g => g.id === groupId);
+    if (!group) {
+      console.warn(`Group ${groupId} not found`);
+      return;
+    }
+
+    this.saveSnapshot();
+    const updatedGroups = this._currentForm().groups.map(g =>
+      g.id === groupId ? { ...g, repeatable: { ...config, enabled: true } } : g
+    );
+
+    this._currentForm.update(form => ({
+      ...form,
+      groups: updatedGroups,
+      updatedAt: new Date(),
+    }));
+    this.saveToStorage();
+  }
+
+  disableGroupRepeatable(groupId: string): void {
+    const group = this._currentForm().groups.find(g => g.id === groupId);
+    if (!group) {
+      console.warn(`Group ${groupId} not found`);
+      return;
+    }
+
+    this.saveSnapshot();
+    const updatedGroups = this._currentForm().groups.map(g =>
+      g.id === groupId ? { ...g, repeatable: undefined } : g
+    );
+
+    this._currentForm.update(form => ({
+      ...form,
+      groups: updatedGroups,
+      updatedAt: new Date(),
+    }));
+    this.saveToStorage();
+  }
+
+  updateGroupRepeatableConfig(
+    groupId: string,
+    config: Partial<import('../models/repeatable.types').RepeatableGroupConfig>
+  ): void {
+    const group = this._currentForm().groups.find(g => g.id === groupId);
+    if (!group || !group.repeatable) {
+      console.warn(`Group ${groupId} not found or repeatable not enabled`);
+      return;
+    }
+
+    this.saveSnapshot();
+    const updatedGroups = this._currentForm().groups.map(g =>
+      g.id === groupId && g.repeatable
+        ? { ...g, repeatable: { ...g.repeatable, ...config } }
+        : g
+    );
+
+    this._currentForm.update(form => ({
+      ...form,
+      groups: updatedGroups,
+      updatedAt: new Date(),
+    }));
+    this.saveToStorage();
+  }
 }
