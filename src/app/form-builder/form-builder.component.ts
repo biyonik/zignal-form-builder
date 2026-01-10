@@ -1,6 +1,7 @@
 import { Component, signal, computed, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { MatTabsModule } from '@angular/material/tabs';
 // Safe expression evaluator (replaces dangerous new Function())
 import { Parser } from 'expr-eval';
 import { FormBuilderService } from './services/form-builder.service';
@@ -33,7 +34,7 @@ import { ZignalPreviewComponent } from './components/zignal-preview/zignal-previ
 @Component({
   selector: 'app-form-builder',
   standalone: true,
-  imports: [CommonModule, FormsModule, WizardPreviewComponent, RepeatableGroupComponent, LogicBuilderComponent, SignatureFieldComponent, ZignalPreviewComponent],
+  imports: [CommonModule, FormsModule, MatTabsModule, WizardPreviewComponent, RepeatableGroupComponent, LogicBuilderComponent, SignatureFieldComponent, ZignalPreviewComponent],
   template: `
     <div class="builder-container" [class.light-theme]="service.theme() === 'light'">
       <!-- Header -->
@@ -140,90 +141,498 @@ import { ZignalPreviewComponent } from './components/zignal-preview/zignal-previ
 
         <!-- Center Panel: Form Canvas -->
         <main class="panel panel-center">
-          <div class="canvas-header">
-            <h3>{{ t('formFields') }} ({{ service.fields().length }})</h3>
-            <div class="canvas-actions">
-              @if (service.hasClipboard()) {
-                <button class="btn-action" (click)="service.pasteField()">
-                  📋 {{ t('paste') }}
-                </button>
-              }
-              <button class="btn-action" (click)="service.clearAllFields()" [disabled]="service.fields().length === 0">
-                🗑️ {{ t('clearAll') }}
-              </button>
-            </div>
-          </div>
-
-          <div
-            class="form-canvas"
-            (dragover)="onDragOver($event)"
-            (drop)="onDropToCanvas($event)"
-          >
-            @if (service.fields().length === 0 && service.groups().length === 0) {
-              <div class="empty-state">
-                <span class="empty-icon">📋</span>
-                <p>{{ t('emptyCanvas') }}</p>
+          <mat-tab-group>
+            <!-- Canvas Tab -->
+            <mat-tab [label]="lang() === 'tr' ? 'Alan' : 'Canvas'">
+              <div class="canvas-header">
+                <h3>{{ t('formFields') }} ({{ service.fields().length }})</h3>
+                <div class="canvas-actions">
+                  @if (service.hasClipboard()) {
+                    <button class="btn-action" (click)="service.pasteField()">
+                      📋 {{ t('paste') }}
+                    </button>
+                  }
+                  <button class="btn-action" (click)="service.clearAllFields()" [disabled]="service.fields().length === 0">
+                    🗑️ {{ t('clearAll') }}
+                  </button>
+                </div>
               </div>
-            }
 
-            <!-- Render grouped fields -->
-            @for (item of service.groupedFields(); track item.group?.id || 'ungrouped') {
-              @if (item.group) {
-                <!-- Group container -->
-                <div
-                  class="field-group"
-                  [class.selected]="service.selectedGroupId() === item.group.id"
-                  [class.collapsed]="item.group.collapsed"
-                >
-                  <div class="group-header" (click)="selectGroup(item.group)">
-                    <div class="group-title">
-                      @if (item.group.collapsible) {
-                        <button class="btn-collapse" (click)="toggleGroupCollapse(item.group); $event.stopPropagation()">
-                          {{ item.group.collapsed ? '▶' : '▼' }}
-                        </button>
+              <div
+                class="form-canvas"
+                (dragover)="onDragOver($event)"
+                (drop)="onDropToCanvas($event)"
+              >
+                @if (service.fields().length === 0 && service.groups().length === 0) {
+                  <div class="empty-state">
+                    <span class="empty-icon">📋</span>
+                    <p>{{ t('emptyCanvas') }}</p>
+                  </div>
+                }
+
+                <!-- Render grouped fields -->
+                @for (item of service.groupedFields(); track item.group?.id || 'ungrouped') {
+                  @if (item.group) {
+                    <!-- Group container -->
+                    <div
+                      class="field-group"
+                      [class.selected]="service.selectedGroupId() === item.group.id"
+                      [class.collapsed]="item.group.collapsed"
+                    >
+                      <div class="group-header" (click)="selectGroup(item.group)">
+                        <div class="group-title">
+                          @if (item.group.collapsible) {
+                            <button class="btn-collapse" (click)="toggleGroupCollapse(item.group); $event.stopPropagation()">
+                              {{ item.group.collapsed ? '▶' : '▼' }}
+                            </button>
+                          }
+                          <span class="group-icon">📁</span>
+                          <span>{{ item.group.label }}</span>
+                          <span class="group-count">({{ item.fields.length }})</span>
+                        </div>
+                        <div class="group-actions">
+                          <button class="btn-icon btn-delete" (click)="service.removeGroup(item.group.id); $event.stopPropagation()">🗑️</button>
+                        </div>
+                      </div>
+                      @if (!item.group.collapsed) {
+                        <div
+                          class="group-content"
+                          (dragover)="onDragOver($event)"
+                          (drop)="onDropToGroup($event, item.group.id)"
+                        >
+                          @for (field of item.fields; track field.id; let i = $index) {
+                            <ng-container *ngTemplateOutlet="fieldTemplate; context: { field, index: i }"></ng-container>
+                          }
+                          @if (item.fields.length === 0) {
+                            <div class="empty-group">{{ t('dropFieldsHere') }}</div>
+                          }
+                        </div>
                       }
-                      <span class="group-icon">📁</span>
-                      <span>{{ item.group.label }}</span>
-                      <span class="group-count">({{ item.fields.length }})</span>
                     </div>
-                    <div class="group-actions">
-                      <button class="btn-icon btn-delete" (click)="service.removeGroup(item.group.id); $event.stopPropagation()">🗑️</button>
+                  } @else {
+                    <!-- Ungrouped fields -->
+                    @for (field of item.fields; track field.id; let i = $index) {
+                      <ng-container *ngTemplateOutlet="fieldTemplate; context: { field, index: i }"></ng-container>
+                    }
+                  }
+                }
+              </div>
+            </mat-tab>
+
+            <!-- Preview Tab -->
+            <mat-tab [label]="lang() === 'tr' ? 'Önizleme' : 'Preview'">
+              <div class="tab-content preview-content">
+                <div class="preview-header">
+                  <h4>{{ t('formPreview') }}</h4>
+                  <div class="preview-actions">
+                    <!-- Zignal Preview Toggle -->
+                    <label class="zignal-toggle" [class.active]="zignalPreviewMode()">
+                      <input
+                        type="checkbox"
+                        [checked]="zignalPreviewMode()"
+                        (change)="zignalPreviewMode.set(getChecked($event))"
+                      />
+                      <span>⚡ Zignal</span>
+                    </label>
+                    <!-- Device Preview Selector -->
+                    <div class="device-selector">
+                      <button
+                        class="device-btn"
+                        [class.active]="previewDevice() === 'mobile'"
+                        (click)="previewDevice.set('mobile')"
+                        title="Mobile (375px)"
+                      >📱</button>
+                      <button
+                        class="device-btn"
+                        [class.active]="previewDevice() === 'tablet'"
+                        (click)="previewDevice.set('tablet')"
+                        title="Tablet (768px)"
+                      >📱</button>
+                      <button
+                        class="device-btn"
+                        [class.active]="previewDevice() === 'desktop'"
+                        (click)="previewDevice.set('desktop')"
+                        title="Desktop (100%)"
+                      >🖥️</button>
+                    </div>
+                    @if (!zignalPreviewMode()) {
+                      <label class="wizard-toggle">
+                        <input
+                          type="checkbox"
+                          [checked]="wizardMode()"
+                          (change)="wizardMode.set(getChecked($event))"
+                        />
+                        <span>🧙 {{ t('wizardMode') }}</span>
+                      </label>
+                    }
+                    <button class="btn-action" (click)="exportToPdf()">
+                      📄 PDF
+                    </button>
+                    <button class="btn-action" (click)="openFullPreview()">
+                      🔍 {{ t('fullscreen') }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Zignal Preview Mode -->
+                @if (zignalPreviewMode() && service.fields().length > 0) {
+                  <app-zignal-preview
+                    [device]="previewDevice()"
+                    [showValidationSummary]="true"
+                    [enablePersistence]="false"
+                    (submitted)="onZignalFormSubmit($event)"
+                  />
+                }
+
+                <!-- Normal Preview Mode -->
+                @if (!zignalPreviewMode() && service.fields().length > 0 && !wizardMode()) {
+                  <div class="preview-device-frame" [class]="'device-' + previewDevice()">
+                    <div class="preview-form">
+                    <!-- Repeatable Groups -->
+                    @for (group of getRepeatableGroups(); track group.id) {
+                      <app-repeatable-group
+                        [group]="group"
+                        [fields]="getGroupFields(group.id)"
+                        [config]="getGroupRepeatableConfig(group)!"
+                        (valuesChange)="onRepeatableValuesChange(group.id, $event)"
+                      />
+                    }
+
+                    <!-- Regular Fields (excluding repeatable group fields) -->
+                    @for (field of getNonRepeatableFields(); track field.id) {
+                      @if (isFieldVisible(field)) {
+                      <div
+                        class="preview-field"
+                        [class.has-error]="previewErrors()[field.name]"
+                        [class.field-disabled]="isFieldDisabled(field)"
+                        [class.col-100]="!field.config['columnWidth'] || field.config['columnWidth'] === '100'"
+                        [class.col-50]="field.config['columnWidth'] === '50'"
+                        [class.col-33]="field.config['columnWidth'] === '33'"
+                        [class.col-25]="field.config['columnWidth'] === '25'"
+                      >
+                        <label>
+                          {{ field.label }}
+                          @if (field.config['required']) {
+                            <span class="required-star">*</span>
+                          }
+                        </label>
+
+                        @switch (field.type) {
+                          @case ('string') {
+                            <input
+                              type="text"
+                              [value]="getPreviewValue(field.name)"
+                              [placeholder]="field.config['placeholder'] || ''"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            />
+                          }
+                          @case ('email') {
+                            <input
+                              type="email"
+                              [value]="getPreviewValue(field.name)"
+                              placeholder="email@example.com"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            />
+                          }
+                          @case ('password') {
+                            <input
+                              type="password"
+                              [value]="getPreviewValue(field.name)"
+                              placeholder="********"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            />
+                          }
+                          @case ('number') {
+                            <input
+                              type="number"
+                              [value]="getPreviewValue(field.name)"
+                              [min]="field.config['min']"
+                              [max]="field.config['max']"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getNumberValue($event))"
+                              (blur)="onPreviewBlur(field.name, getNumberValue($event))"
+                            />
+                          }
+                          @case ('textarea') {
+                            <textarea
+                              [value]="getPreviewValue(field.name)"
+                              [rows]="field.config['rows'] || 4"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            ></textarea>
+                          }
+                          @case ('select') {
+                            <select
+                              [value]="getPreviewValue(field.name)"
+                              [disabled]="isFieldDisabled(field)"
+                              (change)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            >
+                              <option value="">{{ t('select') }}...</option>
+                              @for (opt of field.config['options'] || []; track opt.value) {
+                                <option [value]="opt.value" [selected]="getPreviewValue(field.name) === opt.value">{{ opt.label }}</option>
+                              }
+                            </select>
+                          }
+                          @case ('multiselect') {
+                            <div class="multiselect-preview">
+                              @for (opt of field.config['options'] || []; track opt.value) {
+                                <label class="multiselect-option">
+                                  <input
+                                    type="checkbox"
+                                    [checked]="isMultiselectChecked(field.name, opt.value)"
+                                    [disabled]="isFieldDisabled(field)"
+                                    (change)="onMultiselectChange(field.name, opt.value, getChecked($event))"
+                                  />
+                                  {{ opt.label }}
+                                </label>
+                              }
+                            </div>
+                          }
+                          @case ('boolean') {
+                            <input
+                              type="checkbox"
+                              [checked]="isPreviewChecked(field.name)"
+                              [disabled]="isFieldDisabled(field)"
+                              (change)="onPreviewInput(field.name, getChecked($event))"
+                            />
+                          }
+                          @case ('date') {
+                            <input
+                              type="date"
+                              [value]="getPreviewValue(field.name)"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            />
+                          }
+                          @case ('time') {
+                            <input
+                              type="time"
+                              [value]="getPreviewValue(field.name)"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            />
+                          }
+                          @case ('color') {
+                            <input
+                              type="color"
+                              [value]="getPreviewValue(field.name) || '#000000'"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                            />
+                          }
+                          @case ('url') {
+                            <input
+                              type="url"
+                              [value]="getPreviewValue(field.name)"
+                              placeholder="https://"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            />
+                          }
+                          @case ('tel') {
+                            <input
+                              type="tel"
+                              [value]="getPreviewValue(field.name)"
+                              placeholder="+90 (555) 555-5555"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            />
+                          }
+                          @case ('file') {
+                            <input
+                              type="file"
+                              [accept]="field.config['accept'] || '*'"
+                              [disabled]="isFieldDisabled(field)"
+                            />
+                          }
+                          @case ('radio') {
+                            <div class="radio-group">
+                              @for (opt of field.config['options'] || []; track opt.value) {
+                                <label class="radio-option">
+                                  <input
+                                    type="radio"
+                                    [name]="field.name"
+                                    [value]="opt.value"
+                                    [checked]="getPreviewValue(field.name) === opt.value"
+                                    [disabled]="isFieldDisabled(field)"
+                                    (change)="onPreviewInput(field.name, opt.value)"
+                                  />
+                                  {{ opt.label }}
+                                </label>
+                              }
+                            </div>
+                          }
+                          @case ('rating') {
+                            <div class="rating-preview" [class.disabled]="isFieldDisabled(field)">
+                              @for (star of getStars(field.config['max'] || 5); track star) {
+                                <span
+                                  class="star"
+                                  [class.filled]="isStarFilled(field.name, star)"
+                                  (click)="!isFieldDisabled(field) && onPreviewInput(field.name, star + 1)"
+                                >{{ isStarFilled(field.name, star) ? '★' : '☆' }}</span>
+                              }
+                            </div>
+                          }
+                          @case ('tags') {
+                            <div class="tags-field">
+                              <div class="tags-list">
+                                @for (tag of getTagsList(field.name); track tag) {
+                                  <span class="tag">
+                                    {{ tag }}
+                                    <button type="button" (click)="removeTag(field.name, tag)">×</button>
+                                  </span>
+                                }
+                              </div>
+                              <input
+                                type="text"
+                                [placeholder]="lang() === 'tr' ? 'Etiket ekle (Enter)' : 'Add tag (Enter)'"
+                                [disabled]="isFieldDisabled(field)"
+                                (keydown.enter)="addTag(field.name, $event)"
+                              />
+                            </div>
+                          }
+                          @case ('slug') {
+                            <input
+                              type="text"
+                              [value]="getPreviewValue(field.name)"
+                              placeholder="url-slug-ornegi"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, slugify(getValue($event)))"
+                              (blur)="onPreviewBlur(field.name, getPreviewValue(field.name))"
+                            />
+                          }
+                          @case ('json') {
+                            <textarea
+                              [value]="getPreviewValue(field.name)"
+                              rows="4"
+                              placeholder='{{ "{" }}"key": "value"{{ "}" }}'
+                              class="json-textarea"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onJsonBlur(field.name, getValue($event))"
+                            ></textarea>
+                          }
+                          @case ('slider') {
+                            <div class="slider-input">
+                              <input
+                                type="range"
+                                [value]="getPreviewValue(field.name) || field.config['min'] || 0"
+                                [min]="field.config['min'] || 0"
+                                [max]="field.config['max'] || 100"
+                                [step]="field.config['step'] || 1"
+                                [disabled]="isFieldDisabled(field)"
+                                (input)="onPreviewInput(field.name, getNumberValue($event))"
+                              />
+                              @if (field.config['showValue'] !== false) {
+                                <span class="slider-value">{{ getPreviewValue(field.name) || field.config['min'] || 0 }}{{ field.config['unit'] || '' }}</span>
+                              }
+                            </div>
+                          }
+                          @case ('calculated') {
+                            <div class="calculated-field">
+                              <input
+                                type="text"
+                                [value]="getCalculatedValue(field)"
+                                disabled
+                                class="calculated-value"
+                              />
+                              @if (field.config['formula']) {
+                                <span class="formula-indicator" [title]="field.config['formula']">fx</span>
+                              }
+                            </div>
+                          }
+                          @case ('signature') {
+                            <app-signature-field
+                              [width]="$any(field.config['width']) || 400"
+                              [height]="$any(field.config['height']) || 150"
+                              [penColor]="$any(field.config['penColor']) || '#000000'"
+                              [backgroundColor]="$any(field.config['backgroundColor']) || '#ffffff'"
+                              [disabled]="isFieldDisabled(field)"
+                              [value]="getPreviewValue(field.name)"
+                              [lang]="lang()"
+                              (valueChange)="onPreviewInput(field.name, $event)"
+                            />
+                          }
+                          @default {
+                            <input
+                              type="text"
+                              [value]="getPreviewValue(field.name)"
+                              [disabled]="isFieldDisabled(field)"
+                              (input)="onPreviewInput(field.name, getValue($event))"
+                              (blur)="onPreviewBlur(field.name, getValue($event))"
+                            />
+                          }
+                        }
+
+                        @if (field.config['hint']) {
+                          <span class="hint">{{ field.config['hint'] }}</span>
+                        }
+
+                        @if (previewErrors()[field.name]) {
+                          <span class="error-message">{{ previewErrors()[field.name] }}</span>
+                        }
+                      </div>
+                      }
+                    }
+
+                      <div class="preview-buttons">
+                        <button class="btn-submit" type="button" (click)="saveFormResponse()">
+                          {{ service.settings().submitButtonText[lang()] }}
+                        </button>
+                        @if (service.settings().showReset) {
+                          <button class="btn-reset" type="button" (click)="resetPreview()">
+                            {{ service.settings().resetButtonText[lang()] }}
+                          </button>
+                        }
+                      </div>
                     </div>
                   </div>
-                  @if (!item.group.collapsed) {
-                    <div
-                      class="group-content"
-                      (dragover)="onDragOver($event)"
-                      (drop)="onDropToGroup($event, item.group.id)"
-                    >
-                      @for (field of item.fields; track field.id; let i = $index) {
-                        <ng-container *ngTemplateOutlet="fieldTemplate; context: { field, index: i }"></ng-container>
-                      }
-                      @if (item.fields.length === 0) {
-                        <div class="empty-group">{{ t('dropFieldsHere') }}</div>
-                      }
-                    </div>
-                  }
-                </div>
-              } @else {
-                <!-- Ungrouped fields -->
-                @for (field of item.fields; track field.id; let i = $index) {
-                  <ng-container *ngTemplateOutlet="fieldTemplate; context: { field, index: i }"></ng-container>
                 }
-              }
-            }
-          </div>
+
+                <!-- Wizard Mode Preview -->
+                @if (wizardMode() && service.groups().length > 0) {
+                  <app-wizard-preview
+                    [fields]="service.fields()"
+                    [config]="getWizardConfig()"
+                    (complete)="onWizardComplete($event)"
+                  />
+                } @else if (wizardMode() && service.groups().length === 0) {
+                  <div class="no-selection">
+                    <p>{{ t('wizardNeedsGroups') }}</p>
+                    <button class="btn-action" (click)="addGroup()">
+                      ➕ {{ t('addGroup') }}
+                    </button>
+                  </div>
+                }
+
+                @if (!wizardMode() && service.fields().length === 0) {
+                  <div class="no-selection">
+                    <p>{{ t('addFieldsToPreview') }}</p>
+                  </div>
+                }
+              </div>
+            </mat-tab>
+          </mat-tab-group>
         </main>
 
-        <!-- Right Panel: Config & Preview -->
+        <!-- Right Panel: Config & Settings -->
         <aside class="panel panel-right">
           <!-- Tabs -->
           <div class="panel-tabs">
             <button class="tab-btn" [class.active]="activeTab() === 'config'" (click)="activeTab.set('config')">
               ⚙️ {{ t('config') }}
-            </button>
-            <button class="tab-btn" [class.active]="activeTab() === 'preview'" (click)="activeTab.set('preview')">
-              👁️ {{ t('preview') }}
             </button>
             <button class="tab-btn" [class.active]="activeTab() === 'logic'" (click)="activeTab.set('logic')">
               🔗 {{ t('logic') }}
@@ -561,424 +970,6 @@ import { ZignalPreviewComponent } from './components/zignal-preview/zignal-previ
               } @else {
                 <div class="no-selection">
                   <p>{{ t('selectFieldToEdit') }}</p>
-                </div>
-              }
-            </div>
-          }
-
-          <!-- Preview Tab -->
-          @if (activeTab() === 'preview') {
-            <div class="tab-content preview-content">
-              <div class="preview-header">
-                <h4>{{ t('formPreview') }}</h4>
-                <div class="preview-actions">
-                  <!-- Zignal Preview Toggle -->
-                  <label class="zignal-toggle" [class.active]="zignalPreviewMode()">
-                    <input
-                      type="checkbox"
-                      [checked]="zignalPreviewMode()"
-                      (change)="zignalPreviewMode.set(getChecked($event))"
-                    />
-                    <span>⚡ Zignal</span>
-                  </label>
-                  <!-- Device Preview Selector -->
-                  <div class="device-selector">
-                    <button
-                      class="device-btn"
-                      [class.active]="previewDevice() === 'mobile'"
-                      (click)="previewDevice.set('mobile')"
-                      title="Mobile (375px)"
-                    >📱</button>
-                    <button
-                      class="device-btn"
-                      [class.active]="previewDevice() === 'tablet'"
-                      (click)="previewDevice.set('tablet')"
-                      title="Tablet (768px)"
-                    >📱</button>
-                    <button
-                      class="device-btn"
-                      [class.active]="previewDevice() === 'desktop'"
-                      (click)="previewDevice.set('desktop')"
-                      title="Desktop (100%)"
-                    >🖥️</button>
-                  </div>
-                  @if (!zignalPreviewMode()) {
-                    <label class="wizard-toggle">
-                      <input
-                        type="checkbox"
-                        [checked]="wizardMode()"
-                        (change)="wizardMode.set(getChecked($event))"
-                      />
-                      <span>🧙 {{ t('wizardMode') }}</span>
-                    </label>
-                  }
-                  <button class="btn-action" (click)="exportToPdf()">
-                    📄 PDF
-                  </button>
-                  <button class="btn-action" (click)="openFullPreview()">
-                    🔍 {{ t('fullscreen') }}
-                  </button>
-                </div>
-              </div>
-
-              <!-- Zignal Preview Mode -->
-              @if (zignalPreviewMode() && service.fields().length > 0) {
-                <app-zignal-preview
-                  [device]="previewDevice()"
-                  [showValidationSummary]="true"
-                  [enablePersistence]="false"
-                  (submitted)="onZignalFormSubmit($event)"
-                />
-              }
-
-              <!-- Normal Preview Mode -->
-              @if (!zignalPreviewMode() && service.fields().length > 0 && !wizardMode()) {
-                <div class="preview-device-frame" [class]="'device-' + previewDevice()">
-                  <div class="preview-form">
-                  <!-- Repeatable Groups -->
-                  @for (group of getRepeatableGroups(); track group.id) {
-                    <app-repeatable-group
-                      [group]="group"
-                      [fields]="getGroupFields(group.id)"
-                      [config]="getGroupRepeatableConfig(group)!"
-                      (valuesChange)="onRepeatableValuesChange(group.id, $event)"
-                    />
-                  }
-
-                  <!-- Regular Fields (excluding repeatable group fields) -->
-                  @for (field of getNonRepeatableFields(); track field.id) {
-                    @if (isFieldVisible(field)) {
-                    <div
-                      class="preview-field"
-                      [class.has-error]="previewErrors()[field.name]"
-                      [class.field-disabled]="isFieldDisabled(field)"
-                      [class.col-100]="!field.config['columnWidth'] || field.config['columnWidth'] === '100'"
-                      [class.col-50]="field.config['columnWidth'] === '50'"
-                      [class.col-33]="field.config['columnWidth'] === '33'"
-                      [class.col-25]="field.config['columnWidth'] === '25'"
-                    >
-                      <label>
-                        {{ field.label }}
-                        @if (field.config['required']) {
-                          <span class="required-star">*</span>
-                        }
-                      </label>
-
-                      @switch (field.type) {
-                        @case ('string') {
-                          <input
-                            type="text"
-                            [value]="getPreviewValue(field.name)"
-                            [placeholder]="field.config['placeholder'] || ''"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          />
-                        }
-                        @case ('email') {
-                          <input
-                            type="email"
-                            [value]="getPreviewValue(field.name)"
-                            placeholder="email@example.com"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          />
-                        }
-                        @case ('password') {
-                          <input
-                            type="password"
-                            [value]="getPreviewValue(field.name)"
-                            placeholder="********"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          />
-                        }
-                        @case ('number') {
-                          <input
-                            type="number"
-                            [value]="getPreviewValue(field.name)"
-                            [min]="field.config['min']"
-                            [max]="field.config['max']"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getNumberValue($event))"
-                            (blur)="onPreviewBlur(field.name, getNumberValue($event))"
-                          />
-                        }
-                        @case ('textarea') {
-                          <textarea
-                            [value]="getPreviewValue(field.name)"
-                            [rows]="field.config['rows'] || 4"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          ></textarea>
-                        }
-                        @case ('select') {
-                          <select
-                            [value]="getPreviewValue(field.name)"
-                            [disabled]="isFieldDisabled(field)"
-                            (change)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          >
-                            <option value="">{{ t('select') }}...</option>
-                            @for (opt of field.config['options'] || []; track opt.value) {
-                              <option [value]="opt.value" [selected]="getPreviewValue(field.name) === opt.value">{{ opt.label }}</option>
-                            }
-                          </select>
-                        }
-                        @case ('multiselect') {
-                          <div class="multiselect-preview">
-                            @for (opt of field.config['options'] || []; track opt.value) {
-                              <label class="multiselect-option">
-                                <input
-                                  type="checkbox"
-                                  [checked]="isMultiselectChecked(field.name, opt.value)"
-                                  [disabled]="isFieldDisabled(field)"
-                                  (change)="onMultiselectChange(field.name, opt.value, getChecked($event))"
-                                />
-                                {{ opt.label }}
-                              </label>
-                            }
-                          </div>
-                        }
-                        @case ('boolean') {
-                          <input
-                            type="checkbox"
-                            [checked]="isPreviewChecked(field.name)"
-                            [disabled]="isFieldDisabled(field)"
-                            (change)="onPreviewInput(field.name, getChecked($event))"
-                          />
-                        }
-                        @case ('date') {
-                          <input
-                            type="date"
-                            [value]="getPreviewValue(field.name)"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          />
-                        }
-                        @case ('time') {
-                          <input
-                            type="time"
-                            [value]="getPreviewValue(field.name)"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          />
-                        }
-                        @case ('color') {
-                          <input
-                            type="color"
-                            [value]="getPreviewValue(field.name) || '#000000'"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                          />
-                        }
-                        @case ('url') {
-                          <input
-                            type="url"
-                            [value]="getPreviewValue(field.name)"
-                            placeholder="https://"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          />
-                        }
-                        @case ('phone') {
-                          <input
-                            type="tel"
-                            [value]="getPreviewValue(field.name)"
-                            placeholder="+90 5XX XXX XX XX"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          />
-                        }
-                        @case ('file') {
-                          <input
-                            type="file"
-                            [accept]="field.config['accept'] || '*'"
-                            [disabled]="isFieldDisabled(field)"
-                          />
-                        }
-                        @case ('rating') {
-                          <div class="rating-preview" [class.disabled]="isFieldDisabled(field)">
-                            @for (star of getStars(field.config['max'] || 5); track star) {
-                              <span
-                                class="star"
-                                [class.filled]="isStarFilled(field.name, star)"
-                                (click)="!isFieldDisabled(field) && onPreviewInput(field.name, star + 1)"
-                              >{{ isStarFilled(field.name, star) ? '★' : '☆' }}</span>
-                            }
-                          </div>
-                        }
-                        @case ('money') {
-                          <div class="money-input">
-                            <span class="currency-symbol">{{ getCurrencySymbol(field.config['currency']) }}</span>
-                            <input
-                              type="number"
-                              [value]="getPreviewValue(field.name)"
-                              [min]="field.config['min']"
-                              [max]="field.config['max']"
-                              step="0.01"
-                              [disabled]="isFieldDisabled(field)"
-                              (input)="onPreviewInput(field.name, getNumberValue($event))"
-                              (blur)="onPreviewBlur(field.name, getNumberValue($event))"
-                            />
-                          </div>
-                        }
-                        @case ('percent') {
-                          <div class="percent-input">
-                            <input
-                              type="number"
-                              [value]="getPreviewValue(field.name)"
-                              [min]="field.config['min'] || 0"
-                              [max]="field.config['max'] || 100"
-                              [disabled]="isFieldDisabled(field)"
-                              (input)="onPreviewInput(field.name, getNumberValue($event))"
-                              (blur)="onPreviewBlur(field.name, getNumberValue($event))"
-                            />
-                            <span class="percent-symbol">%</span>
-                          </div>
-                        }
-                        @case ('tags') {
-                          <div class="tags-input">
-                            <div class="tags-list">
-                              @for (tag of getTagsList(field.name); track tag) {
-                                <span class="tag">
-                                  {{ tag }}
-                                  <button type="button" (click)="removeTag(field.name, tag)">×</button>
-                                </span>
-                              }
-                            </div>
-                            <input
-                              type="text"
-                              [placeholder]="lang() === 'tr' ? 'Etiket ekle (Enter)' : 'Add tag (Enter)'"
-                              [disabled]="isFieldDisabled(field)"
-                              (keydown.enter)="addTag(field.name, $event)"
-                            />
-                          </div>
-                        }
-                        @case ('slug') {
-                          <input
-                            type="text"
-                            [value]="getPreviewValue(field.name)"
-                            placeholder="url-slug-ornegi"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, slugify(getValue($event)))"
-                            (blur)="onPreviewBlur(field.name, getPreviewValue(field.name))"
-                          />
-                        }
-                        @case ('json') {
-                          <textarea
-                            [value]="getPreviewValue(field.name)"
-                            rows="4"
-                            placeholder='{{ "{" }}"key": "value"{{ "}" }}'
-                            class="json-textarea"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onJsonBlur(field.name, getValue($event))"
-                          ></textarea>
-                        }
-                        @case ('slider') {
-                          <div class="slider-input">
-                            <input
-                              type="range"
-                              [value]="getPreviewValue(field.name) || field.config['min'] || 0"
-                              [min]="field.config['min'] || 0"
-                              [max]="field.config['max'] || 100"
-                              [step]="field.config['step'] || 1"
-                              [disabled]="isFieldDisabled(field)"
-                              (input)="onPreviewInput(field.name, getNumberValue($event))"
-                            />
-                            @if (field.config['showValue'] !== false) {
-                              <span class="slider-value">{{ getPreviewValue(field.name) || field.config['min'] || 0 }}{{ field.config['unit'] || '' }}</span>
-                            }
-                          </div>
-                        }
-                        @case ('calculated') {
-                          <div class="calculated-field">
-                            <input
-                              type="text"
-                              [value]="getCalculatedValue(field)"
-                              disabled
-                              class="calculated-value"
-                            />
-                            @if (field.config['formula']) {
-                              <span class="formula-indicator" [title]="field.config['formula']">fx</span>
-                            }
-                          </div>
-                        }
-                        @case ('signature') {
-                          <app-signature-field
-                            [width]="$any(field.config['width']) || 400"
-                            [height]="$any(field.config['height']) || 150"
-                            [penColor]="$any(field.config['penColor']) || '#000000'"
-                            [backgroundColor]="$any(field.config['backgroundColor']) || '#ffffff'"
-                            [disabled]="isFieldDisabled(field)"
-                            [value]="getPreviewValue(field.name)"
-                            [lang]="lang()"
-                            (valueChange)="onPreviewInput(field.name, $event)"
-                          />
-                        }
-                        @default {
-                          <input
-                            type="text"
-                            [value]="getPreviewValue(field.name)"
-                            [disabled]="isFieldDisabled(field)"
-                            (input)="onPreviewInput(field.name, getValue($event))"
-                            (blur)="onPreviewBlur(field.name, getValue($event))"
-                          />
-                        }
-                      }
-
-                      @if (field.config['hint']) {
-                        <span class="hint">{{ field.config['hint'] }}</span>
-                      }
-
-                      @if (previewErrors()[field.name]) {
-                        <span class="error-message">{{ previewErrors()[field.name] }}</span>
-                      }
-                    </div>
-                    }
-                  }
-
-                    <div class="preview-buttons">
-                      <button class="btn-submit" type="button" (click)="saveFormResponse()">
-                        {{ service.settings().submitButtonText[lang()] }}
-                      </button>
-                      @if (service.settings().showReset) {
-                        <button class="btn-reset" type="button" (click)="resetPreview()">
-                          {{ service.settings().resetButtonText[lang()] }}
-                        </button>
-                      }
-                    </div>
-                  </div>
-                </div>
-              }
-
-              <!-- Wizard Mode Preview -->
-              @if (wizardMode() && service.groups().length > 0) {
-                <app-wizard-preview
-                  [fields]="service.fields()"
-                  [config]="getWizardConfig()"
-                  (complete)="onWizardComplete($event)"
-                />
-              } @else if (wizardMode() && service.groups().length === 0) {
-                <div class="no-selection">
-                  <p>{{ t('wizardNeedsGroups') }}</p>
-                  <button class="btn-action" (click)="addGroup()">
-                    ➕ {{ t('addGroup') }}
-                  </button>
-                </div>
-              }
-
-              @if (!wizardMode() && service.fields().length === 0) {
-                <div class="no-selection">
-                  <p>{{ t('addFieldsToPreview') }}</p>
                 </div>
               }
             </div>
