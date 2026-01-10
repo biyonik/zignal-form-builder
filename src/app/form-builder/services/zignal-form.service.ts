@@ -581,11 +581,24 @@ export class ZignalFormService {
   }
 
   /**
+   * Mark all fields as touched
+   * This forces validation to run on all fields, even if user hasn't interacted with them
+   */
+  touchAll(): void {
+    this._formState()?.touchAll();
+  }
+
+  /**
    * Full form validation including cross-field
+   * ✅ FIX: Now marks all fields as touched first to ensure validation runs
    */
   async validateAll(): Promise<boolean> {
     const formState = this._formState();
     if (!formState) return false;
+
+    // ✅ CRITICAL FIX: Mark all fields as touched first
+    // This ensures required field validation runs even if user hasn't typed anything
+    formState.touchAll();
 
     // Run field-level validation
     const fieldValid = await formState.validateAll();
