@@ -1,6 +1,8 @@
 import { Component, signal, computed, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+// Safe expression evaluator (replaces dangerous new Function())
+import { Parser } from 'expr-eval';
 import { FormBuilderService } from './services/form-builder.service';
 import { CodeGeneratorService } from './services/code-generator.service';
 import { PdfExportService } from './services/pdf-export.service';
@@ -4472,19 +4474,19 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Safe expression evaluator for calculated fields
+  // ✅ SECURITY FIX: Safe expression evaluator for calculated fields
   private evaluateExpression(expr: string): number {
-    // Only allow numbers, basic operators, parentheses, and spaces
-    const sanitized = expr.replace(/[^0-9+\-*/().%\s]/g, '');
-    if (!sanitized || sanitized !== expr.replace(/\s/g, '').replace(/[^0-9+\-*/().%]/g, '')) {
+    if (!expr || typeof expr !== 'string') {
       return NaN;
     }
 
-    // Use Function constructor for safe evaluation (no access to scope)
     try {
-      const fn = new Function(`return (${sanitized})`);
-      return fn();
-    } catch {
+      // Use safe expression evaluator instead of new Function()
+      const parser = new Parser();
+      const result = parser.evaluate(expr.trim());
+      return typeof result === 'number' ? result : NaN;
+    } catch (error) {
+      console.warn('Expression evaluation failed:', expr, error);
       return NaN;
     }
   }
@@ -4572,15 +4574,34 @@ export class FormBuilderComponent implements OnInit, OnDestroy {
   }
 
   // Wizard Methods
+  // ✅ TYPE FIX: Handle bilingual labels properly
   getWizardConfig(): WizardConfig {
-    const steps: WizardStep[] = this.service.groups().map((group, index) => ({
-      id: group.id,
-      title: typeof group.name === 'object' ? group.name : { tr: group.label || group.id, en: group.label || group.id },
-      description: group.description ? { tr: group.description, en: group.description } : undefined,
-      icon: (group as any).icon,
-      fields: this.service.fields().filter(f => f.groupId === group.id).map(f => f.name),
-      order: index
-    }));
+    const steps: WizardStep[] = this.service.groups().map((group, index) => {
+      // Handle bilingual title
+      let title: { tr: string; en: string };
+      if (typeof group.label === 'object') {
+        title = group.label;
+      } else if (typeof group.name === 'object') {
+        title = group.name;
+      } else {
+        title = { tr: group.label || group.name || group.id, en: group.label || group.name || group.id };
+      }
+
+      // Handle bilingual description
+      let description: { tr: string; en: string } | undefined;
+      if (group.description) {
+        description = typeof group.description === 'object' ? group.description : { tr: group.description, en: group.description };
+      }
+
+      return {
+        id: group.id,
+        title,
+        description,
+        icon: (group as any).icon,
+        fields: this.service.fields().filter(f => f.groupId === group.id).map(f => f.name),
+        order: index
+      };
+    });
 
     return {
       ...this.wizardConfig,

@@ -62,12 +62,13 @@ import { I18nService } from '../../services/i18n.service';
       </div>
 
       <!-- Current Step Content -->
-      @if (currentStepData()) {
+      <!-- ✅ NULL SAFETY FIX: Use safe navigation instead of non-null assertion -->
+      @if (currentStepData(); as stepData) {
         <div class="step-content">
           <div class="step-header">
-            <h3>{{ getStepTitle(currentStepData()!) }}</h3>
-            @if (currentStepData()!.description) {
-              <p class="step-description">{{ getStepDescription(currentStepData()!) }}</p>
+            <h3>{{ getStepTitle(stepData) }}</h3>
+            @if (stepData.description) {
+              <p class="step-description">{{ getStepDescription(stepData) }}</p>
             }
           </div>
 

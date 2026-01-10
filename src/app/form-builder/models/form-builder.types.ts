@@ -70,12 +70,13 @@ export interface ConditionalRule {
 /**
  * TR: Alan grubu tanımı
  * EN: Field group definition
+ * ✅ TYPE FIX: Support bilingual labels and names
  */
 export interface FieldGroup {
   id: string;
-  name: string;
-  label: string;
-  description?: string;
+  name: string | { tr: string; en: string };
+  label: string | { tr: string; en: string };
+  description?: string | { tr: string; en: string };
   collapsible?: boolean;
   collapsed?: boolean;
   order: number;
@@ -101,6 +102,9 @@ export interface FormDefinition {
  * TR: Form ayarları
  * EN: Form settings
  */
+/**
+ * ✅ TYPE FIX: Align layout options with Zignal FormRendererConfig
+ */
 export interface FormSettings {
   submitButtonText: { tr: string; en: string };
   resetButtonText: { tr: string; en: string };
@@ -109,7 +113,7 @@ export interface FormSettings {
   validateOnChange: boolean;
   persistDraft: boolean;
   persistKey?: string;
-  layout: 'vertical' | 'horizontal' | 'inline';
+  layout: 'vertical' | 'horizontal' | 'grid';  // Changed: 'inline' → 'grid' for Zignal compatibility
   labelPosition: 'top' | 'left' | 'floating';
   size: 'small' | 'medium' | 'large';
 }

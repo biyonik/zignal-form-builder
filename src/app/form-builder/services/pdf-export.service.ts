@@ -340,12 +340,14 @@ export class PdfExportService {
       groups.forEach(group => {
         const groupFields = groupMap.get(group.id) || [];
         if (groupFields.length > 0) {
-          // Handle both string and object name types
+          // ✅ TYPE FIX: Handle bilingual names and labels
           let groupName: string;
           if (typeof group.name === 'object' && group.name !== null) {
-            groupName = (group.name as { tr?: string; en?: string })[lang] || group.label || group.id;
+            groupName = (group.name as { tr?: string; en?: string })[lang] || group.id;
+          } else if (typeof group.label === 'object' && group.label !== null) {
+            groupName = (group.label as { tr?: string; en?: string })[lang] || group.name || group.id;
           } else {
-            groupName = group.name || group.label || group.id;
+            groupName = (group.name as string) || (group.label as string) || group.id;
           }
           content += `<h2>${groupName}</h2>`;
           content += this.renderFields(groupFields, lang, values, includeConfig);

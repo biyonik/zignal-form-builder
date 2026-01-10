@@ -1,4 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
+import { z } from 'zod';
 import {
   FormDefinition,
   FormFieldDef,
@@ -16,6 +17,21 @@ import {
 
 const STORAGE_KEY = 'zignal-form-builder';
 const MAX_UNDO_STACK = 50;
+
+// ✅ PERFORMANCE FIX: Use structuredClone for better performance
+function deepClone<T>(obj: T): T {
+  // structuredClone is faster and more reliable than JSON.parse(JSON.stringify())
+  // It also preserves Date objects, Maps, Sets, etc.
+  return structuredClone(obj);
+}
+
+// ✅ SECURITY FIX: Zod schema for localStorage validation
+const StorageDataSchema = z.object({
+  savedForms: z.array(z.any()).optional(),
+  theme: z.enum(['light', 'dark']).optional(),
+  language: z.enum(['tr', 'en']).optional(),
+  currentFormId: z.string().optional(),
+}).passthrough();
 
 @Injectable({ providedIn: 'root' })
 export class FormBuilderService {
@@ -108,29 +124,51 @@ export class FormBuilderService {
     this.loadFromStorage();
   }
 
+  // ✅ SECURITY FIX: Validate localStorage data before using it
   private loadFromStorage(): void {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        if (data.savedForms) {
-          this._savedForms.set(data.savedForms);
-        }
-        if (data.theme) {
-          this._theme.set(data.theme);
-        }
-        if (data.language) {
-          this._language.set(data.language);
-        }
-        if (data.currentFormId) {
-          const form = data.savedForms?.find((f: SavedForm) => f.id === data.currentFormId);
-          if (form) {
-            this._currentForm.set(form.data);
-          }
+      if (!stored) {
+        return;
+      }
+
+      // Parse JSON
+      const parsed = JSON.parse(stored);
+
+      // Validate with Zod schema
+      const validation = StorageDataSchema.safeParse(parsed);
+      if (!validation.success) {
+        console.warn('Invalid localStorage data, resetting:', validation.error);
+        localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+
+      const data = validation.data;
+
+      // Apply validated data
+      if (data.savedForms && Array.isArray(data.savedForms)) {
+        this._savedForms.set(data.savedForms);
+      }
+      if (data.theme) {
+        this._theme.set(data.theme);
+      }
+      if (data.language) {
+        this._language.set(data.language);
+      }
+      if (data.currentFormId && data.savedForms) {
+        const form = data.savedForms.find((f: SavedForm) => f.id === data.currentFormId);
+        if (form && form.data) {
+          this._currentForm.set(form.data);
         }
       }
     } catch (e) {
-      console.warn('Failed to load from storage:', e);
+      console.error('Failed to load from storage:', e);
+      // Clear corrupted data
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // Ignore if localStorage is not available
+      }
     }
   }
 
@@ -152,12 +190,14 @@ export class FormBuilderService {
   // Undo/Redo
   // ============================================
 
+  // ✅ PERFORMANCE FIX: Use structuredClone instead of JSON methods
   private saveSnapshot(): void {
+    const current = this._currentForm();
     const snapshot: FormStateSnapshot = {
-      fields: JSON.parse(JSON.stringify(this._currentForm().fields)),
-      groups: JSON.parse(JSON.stringify(this._currentForm().groups)),
-      settings: JSON.parse(JSON.stringify(this._currentForm().settings)),
-      crossValidators: JSON.parse(JSON.stringify(this._currentForm().crossValidators)),
+      fields: deepClone(current.fields),
+      groups: deepClone(current.groups),
+      settings: deepClone(current.settings),
+      crossValidators: deepClone(current.crossValidators),
       timestamp: Date.now(),
     };
 
@@ -170,19 +210,29 @@ export class FormBuilderService {
     this._redoStack.set([]); // Clear redo on new action
   }
 
+  // ✅ PERFORMANCE FIX: Use structuredClone for undo
   undo(): void {
     const undoStack = this._undoStack();
     if (undoStack.length === 0) return;
 
     // Save current state to redo
+    const current = this._currentForm();
     const currentSnapshot: FormStateSnapshot = {
-      fields: JSON.parse(JSON.stringify(this._currentForm().fields)),
-      groups: JSON.parse(JSON.stringify(this._currentForm().groups)),
-      settings: JSON.parse(JSON.stringify(this._currentForm().settings)),
-      crossValidators: JSON.parse(JSON.stringify(this._currentForm().crossValidators)),
+      fields: deepClone(current.fields),
+      groups: deepClone(current.groups),
+      settings: deepClone(current.settings),
+      crossValidators: deepClone(current.crossValidators),
       timestamp: Date.now(),
     };
-    this._redoStack.update(stack => [...stack, currentSnapshot]);
+
+    // ✅ MEMORY LEAK FIX: Add size limit to redo stack
+    this._redoStack.update(stack => {
+      const newStack = [...stack, currentSnapshot];
+      if (newStack.length > MAX_UNDO_STACK) {
+        newStack.shift();  // Remove oldest entry
+      }
+      return newStack;
+    });
 
     // Restore previous state
     const snapshot = undoStack[undoStack.length - 1];
@@ -198,19 +248,29 @@ export class FormBuilderService {
     }));
   }
 
+  // ✅ MEMORY LEAK FIX + PERFORMANCE FIX: structuredClone for redo
   redo(): void {
     const redoStack = this._redoStack();
     if (redoStack.length === 0) return;
 
     // Save current state to undo
+    const current = this._currentForm();
     const currentSnapshot: FormStateSnapshot = {
-      fields: JSON.parse(JSON.stringify(this._currentForm().fields)),
-      groups: JSON.parse(JSON.stringify(this._currentForm().groups)),
-      settings: JSON.parse(JSON.stringify(this._currentForm().settings)),
-      crossValidators: JSON.parse(JSON.stringify(this._currentForm().crossValidators)),
+      fields: deepClone(current.fields),
+      groups: deepClone(current.groups),
+      settings: deepClone(current.settings),
+      crossValidators: deepClone(current.crossValidators),
       timestamp: Date.now(),
     };
-    this._undoStack.update(stack => [...stack, currentSnapshot]);
+
+    // Add to undo stack with size limit
+    this._undoStack.update(stack => {
+      const newStack = [...stack, currentSnapshot];
+      if (newStack.length > MAX_UNDO_STACK) {
+        newStack.shift();  // Remove oldest entry
+      }
+      return newStack;
+    });
 
     // Restore redo state
     const snapshot = redoStack[redoStack.length - 1];
@@ -299,7 +359,7 @@ export class FormBuilderService {
       type: field.type,
       name: field.name + '_copy',
       label: field.label + ' (Copy)',
-      config: JSON.parse(JSON.stringify(field.config)),
+      config: deepClone(field.config),
       groupId: field.groupId,
     }, field.groupId);
 
@@ -360,7 +420,7 @@ export class FormBuilderService {
   copyField(id: string): void {
     const field = this._currentForm().fields.find(f => f.id === id);
     if (field) {
-      this._clipboard.set(JSON.parse(JSON.stringify(field)));
+      this._clipboard.set(deepClone(field));
     }
   }
 
@@ -533,7 +593,7 @@ export class FormBuilderService {
       id: form.id,
       name: form.name,
       description: form.description,
-      data: JSON.parse(JSON.stringify(form)),
+      data: deepClone(form),
       savedAt: new Date(),
     };
 
@@ -553,7 +613,7 @@ export class FormBuilderService {
   loadForm(id: string): void {
     const saved = this._savedForms().find(f => f.id === id);
     if (saved) {
-      this._currentForm.set(JSON.parse(JSON.stringify(saved.data)));
+      this._currentForm.set(deepClone(saved.data));
       this._selectedFieldId.set(null);
       this._selectedGroupId.set(null);
       this._undoStack.set([]);

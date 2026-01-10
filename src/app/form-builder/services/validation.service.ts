@@ -1,4 +1,12 @@
 import { Injectable, inject } from '@angular/core';
+import {
+  isValidTCKN,
+  isValidVKN,
+  isValidTurkishIBAN,
+  isValidTurkishPhone,
+  isValidTurkishPlate,
+  isValidTurkishPostalCode,
+} from '@biyonik/zignal';
 import { I18nService, Language } from './i18n.service';
 import { FormFieldDef } from '../models/form-builder.types';
 
@@ -60,6 +68,26 @@ export class ValidationService {
         break;
       case 'multiselect':
         error = this.validateMultiselect(field, value as string[]);
+        break;
+
+      // ✅ FIX: Add Turkish validator field types
+      case 'tckn':
+        error = this.validateTCKN(value as string);
+        break;
+      case 'vkn':
+        error = this.validateVKN(value as string);
+        break;
+      case 'iban':
+        error = this.validateIBAN(value as string);
+        break;
+      case 'turkishPhone':
+        error = this.validateTurkishPhone(value as string);
+        break;
+      case 'turkishPlate':
+        error = this.validateTurkishPlate(value as string);
+        break;
+      case 'postalCode':
+        error = this.validatePostalCode(value as string);
         break;
     }
 
@@ -259,5 +287,87 @@ export class ValidationService {
       }
       return null;
     };
+  }
+
+  // ============================================
+  // ✅ FIX: Turkish Validator Methods
+  // ============================================
+
+  /**
+   * Validate Turkish ID Number (TCKN)
+   */
+  private validateTCKN(value: string): string | null {
+    if (!value || typeof value !== 'string') {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz TCKN' : 'Invalid TCKN';
+    }
+    if (!isValidTCKN(value)) {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz TCKN numarası' : 'Invalid TCKN number';
+    }
+    return null;
+  }
+
+  /**
+   * Validate Turkish Tax ID (VKN)
+   */
+  private validateVKN(value: string): string | null {
+    if (!value || typeof value !== 'string') {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz VKN' : 'Invalid VKN';
+    }
+    if (!isValidVKN(value)) {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz VKN numarası' : 'Invalid VKN number';
+    }
+    return null;
+  }
+
+  /**
+   * Validate Turkish IBAN
+   */
+  private validateIBAN(value: string): string | null {
+    if (!value || typeof value !== 'string') {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz IBAN' : 'Invalid IBAN';
+    }
+    if (!isValidTurkishIBAN(value)) {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz IBAN numarası' : 'Invalid IBAN number';
+    }
+    return null;
+  }
+
+  /**
+   * Validate Turkish Phone Number
+   */
+  private validateTurkishPhone(value: string): string | null {
+    if (!value || typeof value !== 'string') {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz telefon' : 'Invalid phone';
+    }
+    if (!isValidTurkishPhone(value)) {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz telefon numarası' : 'Invalid phone number';
+    }
+    return null;
+  }
+
+  /**
+   * Validate Turkish License Plate
+   */
+  private validateTurkishPlate(value: string): string | null {
+    if (!value || typeof value !== 'string') {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz plaka' : 'Invalid plate';
+    }
+    if (!isValidTurkishPlate(value)) {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz plaka numarası' : 'Invalid license plate';
+    }
+    return null;
+  }
+
+  /**
+   * Validate Turkish Postal Code
+   */
+  private validatePostalCode(value: string): string | null {
+    if (!value || typeof value !== 'string') {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz posta kodu' : 'Invalid postal code';
+    }
+    if (!isValidTurkishPostalCode(value)) {
+      return this.i18n.lang() === 'tr' ? 'Geçersiz posta kodu' : 'Invalid postal code';
+    }
+    return null;
   }
 }
