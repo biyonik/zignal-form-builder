@@ -38,6 +38,12 @@ import {
   vknSchema,
   turkishIbanSchema,
   turkishPhoneSchema,
+  isValidTCKN,
+  isValidVKN,
+  isValidTurkishIBAN,
+  isValidTurkishPhone,
+  isValidTurkishPlate,
+  isValidTurkishPostalCode,
 
   // Cross Validators
   CrossValidators,
@@ -196,9 +202,19 @@ export class ZignalFormService {
         });
 
       case 'phone':
+        return new PhoneField(name, label, {
+          required,
+        });
+
       case 'turkishPhone':
         return new PhoneField(name, label, {
           required,
+          customValidator: (value: unknown) => {
+            if (!value || typeof value !== 'string') return null;
+            const normalized = value.replace(/\s/g, '');
+            if (!isValidTurkishPhone(normalized)) return 'Geçersiz Türk telefon numarası';
+            return null;
+          },
         });
 
       case 'url':
@@ -245,6 +261,13 @@ export class ZignalFormService {
           required,
           minLength: 11,
           maxLength: 11,
+          pattern: /^\d{11}$/,
+          customValidator: (value: unknown) => {
+            if (!value || typeof value !== 'string') return null;
+            if (!/^\d{11}$/.test(value)) return 'TCKN 11 haneli rakam olmalıdır';
+            if (!isValidTCKN(value)) return 'Geçersiz TC Kimlik Numarası';
+            return null;
+          },
         });
 
       case 'vkn':
@@ -252,6 +275,13 @@ export class ZignalFormService {
           required,
           minLength: 10,
           maxLength: 10,
+          pattern: /^\d{10}$/,
+          customValidator: (value: unknown) => {
+            if (!value || typeof value !== 'string') return null;
+            if (!/^\d{10}$/.test(value)) return 'VKN 10 haneli rakam olmalıdır';
+            if (!isValidVKN(value)) return 'Geçersiz Vergi Kimlik Numarası';
+            return null;
+          },
         });
 
       case 'iban':
@@ -259,12 +289,38 @@ export class ZignalFormService {
           required,
           minLength: 26,
           maxLength: 26,
+          pattern: /^TR\d{24}$/i,
+          customValidator: (value: unknown) => {
+            if (!value || typeof value !== 'string') return null;
+            const normalized = value.toUpperCase().replace(/\s/g, '');
+            if (!/^TR\d{24}$/.test(normalized)) return 'IBAN TR ile başlamalı ve 26 karakter olmalıdır';
+            if (!isValidTurkishIBAN(normalized)) return 'Geçersiz Türk IBAN';
+            return null;
+          },
         });
 
       case 'turkishPlate':
+        return new StringField(name, label, {
+          required,
+          pattern: /^\d{2}\s?[A-Z]{1,3}\s?\d{2,4}$/i,
+          customValidator: (value: unknown) => {
+            if (!value || typeof value !== 'string') return null;
+            const normalized = value.toUpperCase().replace(/\s/g, '');
+            if (!isValidTurkishPlate(normalized)) return 'Geçersiz Türk plaka formatı';
+            return null;
+          },
+        });
+
       case 'postalCode':
         return new StringField(name, label, {
           required,
+          pattern: /^\d{5}$/,
+          customValidator: (value: unknown) => {
+            if (!value || typeof value !== 'string') return null;
+            if (!/^\d{5}$/.test(value)) return 'Posta kodu 5 haneli rakam olmalıdır';
+            if (!isValidTurkishPostalCode(value)) return 'Geçersiz posta kodu';
+            return null;
+          },
         });
 
       default:
@@ -278,7 +334,7 @@ export class ZignalFormService {
   /**
    * Convert FieldGroup to Zignal GroupField
    */
-  private convertGroup(group: FieldGroup, fields: FormFieldDef[]): IField<unknown>[] {
+  private convertGroup(group: FieldGroup, fields: FormFieldDef[]): GroupField | null {
     const groupFields: IField<unknown>[] = [];
 
     for (const field of fields) {
@@ -288,8 +344,19 @@ export class ZignalFormService {
       }
     }
 
-    // Return fields directly since GroupField API doesn't accept nested fields in config
-    return groupFields;
+    if (groupFields.length === 0) {
+      return null;
+    }
+
+    const lang = this.builderService.language();
+    const label = typeof group.label === 'string' ? group.label : group.label[lang];
+
+    // Create GroupField with nested fields
+    return new GroupField(group.id, label, groupFields, {
+      collapsible: group.collapsible || false,
+      collapsed: group.collapsed || false,
+      showTitle: true,
+    });
   }
 
   /**
@@ -353,8 +420,10 @@ export class ZignalFormService {
       const groupFields = fields.filter(f => f.groupId === group.id);
 
       if (groupFields.length > 0) {
-        const convertedFields = this.convertGroup(group, groupFields);
-        zignalFields.push(...convertedFields);
+        const groupField = this.convertGroup(group, groupFields);
+        if (groupField) {
+          zignalFields.push(groupField);
+        }
 
         // Mark these fields as processed
         groupFields.forEach(f => processedFieldIds.add(f.id));
