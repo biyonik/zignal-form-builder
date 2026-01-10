@@ -71,6 +71,7 @@ export interface ConditionalRule {
  * TR: Alan grubu tanımı
  * EN: Field group definition
  * ✅ TYPE FIX: Support bilingual labels and names
+ * ✅ FEATURE: Add repeatable config support
  */
 export interface FieldGroup {
   id: string;
@@ -80,11 +81,13 @@ export interface FieldGroup {
   collapsible?: boolean;
   collapsed?: boolean;
   order: number;
+  repeatable?: import('./repeatable.types').RepeatableGroupConfig;  // ✅ NEW: Repeatable support
 }
 
 /**
  * TR: Form tanımı
  * EN: Form definition
+ * ✅ FEATURE: Add wizard config support
  */
 export interface FormDefinition {
   id: string;
@@ -94,6 +97,7 @@ export interface FormDefinition {
   groups: FieldGroup[];
   settings: FormSettings;
   crossValidators: CrossValidatorDef[];
+  wizard?: import('./wizard.types').WizardConfig;  // ✅ NEW: Wizard support
   createdAt: Date;
   updatedAt: Date;
 }
@@ -199,6 +203,9 @@ export const DEFAULT_FORM_SETTINGS: FormSettings = {
  * TR: Boş form tanımı oluştur
  * EN: Create empty form definition
  */
+/**
+ * ✅ FEATURE: Now includes wizard config
+ */
 export function createEmptyForm(id?: string): FormDefinition {
   return {
     id: id || generateId(),
@@ -208,6 +215,7 @@ export function createEmptyForm(id?: string): FormDefinition {
     groups: [],
     settings: { ...DEFAULT_FORM_SETTINGS },
     crossValidators: [],
+    wizard: undefined,  // ✅ NEW: Optional wizard config
     createdAt: new Date(),
     updatedAt: new Date(),
   };
