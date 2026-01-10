@@ -7,7 +7,6 @@ import {
   computed,
   signal,
   effect,
-  untracked,
   OnInit,
   OnDestroy,
 } from '@angular/core';
@@ -33,34 +32,13 @@ import { FormBuilderService } from '../../services/form-builder.service';
   template: `
     <div class="zignal-preview" [class]="'device-' + device()">
       @if (isReady()) {
-        <div class="preview-form-wrapper">
-          <zg-form-renderer
-            [schema]="schema()!"
-            [formState]="formState()!"
-            [config]="rendererConfig()"
-            (submitted)="onSubmit($event)"
-            (resetted)="onReset()"
-          />
-
-          <!-- ✅ FIX: Custom submit/reset buttons with proper validation -->
-          <div class="custom-form-actions">
-            @if (builderService.settings().showReset) {
-              <button
-                type="button"
-                class="zg-btn zg-btn--secondary"
-                (click)="handleReset()">
-                {{ builderService.settings().resetButtonText[lang()] }}
-              </button>
-            }
-            <button
-              type="button"
-              class="zg-btn zg-btn--primary"
-              [disabled]="isSubmitDisabled()"
-              (click)="handleSubmit()">
-              {{ builderService.settings().submitButtonText[lang()] }}
-            </button>
-          </div>
-        </div>
+        <zg-form-renderer
+          [schema]="schema()!"
+          [formState]="formState()!"
+          [config]="rendererConfig()"
+          (submitted)="onSubmit($event)"
+          (resetted)="onReset()"
+        />
       } @else {
         <div class="preview-placeholder">
           <span class="placeholder-icon">📋</span>
@@ -284,32 +262,12 @@ import { FormBuilderService } from '../../services/form-builder.service';
       gap: 8px;
       margin-top: 12px;
     }
-
-    /* Custom form actions */
-    .custom-form-actions {
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid var(--border, #333);
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-    }
-
-    .preview-form-wrapper {
-      position: relative;
-    }
-
-    /* Hide Zignal's default submit/reset buttons */
-    :host ::ng-deep .zg-form-actions {
-      display: none !important;
-    }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ZignalPreviewComponent implements OnInit, OnDestroy {
   private zignalService = inject(ZignalFormService);
-  // ✅ FIX: Made public to access in template
-  public builderService = inject(FormBuilderService);
+  private builderService = inject(FormBuilderService);
 
   // Inputs
   readonly device = input<'mobile' | 'tablet' | 'desktop'>('desktop');
@@ -351,27 +309,25 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
       }));
   });
 
-  // ✅ FIX: Hide Zignal's default buttons - we use custom buttons with proper validation
+  // ✅ Zignal 0.1.3: Using built-in validation features!
   readonly rendererConfig = computed<FormRendererConfig>(() => {
     const settings = this.builderService.settings();
+    const lang = this.lang();
 
     return {
       layout: settings.layout,
       columns: settings.layout === 'grid' ? 2 : 1,
-      showSubmitButton: false,  // ✅ Hide - using custom button
-      showResetButton: false,   // ✅ Hide - using custom button
+      showSubmitButton: true,
+      showResetButton: settings.showReset,
+      submitText: settings.submitButtonText[lang],
+      resetText: settings.resetButtonText[lang],
       submitDisabledWhenInvalid: true,
+      // ✅ NEW in Zignal 0.1.3: Built-in validation behavior
+      validateOnInit: true,        // Validate on form load
+      validateOnChange: true,       // Validate on every change
+      touchAllOnSubmit: true,       // Touch all fields on submit
+      showErrorsWhenUntouched: false, // Only show errors after touch
     };
-  });
-
-  // ✅ FIX: Compute submit button disabled state with proper validation
-  readonly isSubmitDisabled = computed(() => {
-    const formState = this.formState();
-    if (!formState) return true;
-
-    // Check if form is valid
-    // This is reactive and updates when fields change
-    return !formState.valid();
   });
 
   // Effects
@@ -385,26 +341,8 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
     }
   }, { allowSignalWrites: true });
 
-  // ✅ VALIDATION FIX: Trigger validation whenever form values change
-  private validationEffect = effect(async (onCleanup) => {
-    const formState = this.formState();
-
-    if (formState && this.initialized()) {
-      // Track value changes
-      const values = formState.values();
-
-      // Trigger validation on every change
-      // This ensures submit button is always in correct state
-      // Using setTimeout to avoid synchronous signal updates during effect
-      const timeoutId = setTimeout(() => {
-        this.zignalService.validateAll().catch(err => {
-          console.warn('Validation error:', err);
-        });
-      }, 0);
-
-      onCleanup(() => clearTimeout(timeoutId));
-    }
-  }, { allowSignalWrites: true });
+  // ✅ Zignal 0.1.3: No need for manual validation effect!
+  // validateOnChange config handles this automatically
 
   ngOnInit(): void {
     this.initializeForm();
@@ -427,27 +365,14 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
 
     this.initialized.set(true);
 
-    // ✅ FIX: Run initial validation to set proper form state
-    // This ensures submit button is disabled if fields are required but empty
-    setTimeout(() => {
-      if (this.builderService.fields().length > 0) {
-        this.zignalService.validateAll().catch(err => {
-          console.warn('Initial validation error:', err);
-        });
-      }
-    }, 0);
+    // ✅ Zignal 0.1.3: validateOnInit handles initial validation automatically!
   }
 
   private rebuildForm(): void {
     const currentValues = this.zignalService.getValues();
     this.zignalService.createFormState(currentValues);
 
-    // ✅ FIX: Re-validate after rebuilding to ensure correct form state
-    setTimeout(() => {
-      this.zignalService.validateAll().catch(err => {
-        console.warn('Rebuild validation error:', err);
-      });
-    }, 0);
+    // ✅ Zignal 0.1.3: validateOnChange handles re-validation automatically!
   }
 
   private getFieldLabel(fieldName: string): string {
@@ -455,43 +380,14 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
     return field?.label || fieldName;
   }
 
-  // ✅ FIX: Custom submit handler with touchAll() + validation
-  async handleSubmit(): Promise<void> {
-    const formState = this.formState();
-    if (!formState) return;
-
-    // 1. Mark ALL fields as touched (forces validation on untouched fields)
-    this.zignalService.touchAll();
-
-    // 2. Wait a tick for signals to update
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    // 3. Run full validation including cross-field
-    const isValid = await this.zignalService.validateAll();
-
-    // 4. Only submit if valid
-    if (isValid) {
-      const values = formState.getValues();
-      this.submitted.emit(values);
-    } else {
-      // Show validation errors
-      console.warn('Form validation failed. Cannot submit.');
-    }
-  }
-
-  // ✅ FIX: Custom reset handler
-  handleReset(): void {
-    this.zignalService.reset();
-  }
-
+  // ✅ Zignal 0.1.3 handles validation automatically via config!
   async onSubmit(values: Record<string, unknown>): Promise<void> {
-    // This shouldn't be called anymore since Zignal's buttons are hidden
-    // But keep it just in case
-    await this.handleSubmit();
+    // Zignal already validated via touchAllOnSubmit + validateAll
+    this.submitted.emit(values);
   }
 
   onReset(): void {
-    this.handleReset();
+    this.zignalService.reset();
   }
 
   // Public methods for parent component
