@@ -33,13 +33,34 @@ import { FormBuilderService } from '../../services/form-builder.service';
   template: `
     <div class="zignal-preview" [class]="'device-' + device()">
       @if (isReady()) {
-        <zg-form-renderer
-          [schema]="schema()!"
-          [formState]="formState()!"
-          [config]="rendererConfig()"
-          (submitted)="onSubmit($event)"
-          (resetted)="onReset()"
-        />
+        <div class="preview-form-wrapper">
+          <zg-form-renderer
+            [schema]="schema()!"
+            [formState]="formState()!"
+            [config]="rendererConfig()"
+            (submitted)="onSubmit($event)"
+            (resetted)="onReset()"
+          />
+
+          <!-- ✅ FIX: Custom submit/reset buttons with proper validation -->
+          <div class="custom-form-actions">
+            @if (builderService.settings().showReset) {
+              <button
+                type="button"
+                class="zg-btn zg-btn--secondary"
+                (click)="handleReset()">
+                {{ builderService.settings().resetButtonText[lang()] }}
+              </button>
+            }
+            <button
+              type="button"
+              class="zg-btn zg-btn--primary"
+              [disabled]="isSubmitDisabled()"
+              (click)="handleSubmit()">
+              {{ builderService.settings().submitButtonText[lang()] }}
+            </button>
+          </div>
+        </div>
       } @else {
         <div class="preview-placeholder">
           <span class="placeholder-icon">📋</span>
@@ -263,12 +284,32 @@ import { FormBuilderService } from '../../services/form-builder.service';
       gap: 8px;
       margin-top: 12px;
     }
+
+    /* Custom form actions */
+    .custom-form-actions {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border, #333);
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    .preview-form-wrapper {
+      position: relative;
+    }
+
+    /* Hide Zignal's default submit/reset buttons */
+    :host ::ng-deep .zg-form-actions {
+      display: none !important;
+    }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ZignalPreviewComponent implements OnInit, OnDestroy {
   private zignalService = inject(ZignalFormService);
-  private builderService = inject(FormBuilderService);
+  // ✅ FIX: Made public to access in template
+  public builderService = inject(FormBuilderService);
 
   // Inputs
   readonly device = input<'mobile' | 'tablet' | 'desktop'>('desktop');
@@ -310,21 +351,27 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
       }));
   });
 
-  // ✅ TYPE FIX: FormSettings layout now matches FormRendererConfig
-  // ✅ VALIDATION FIX: Properly disable submit button when form is invalid
+  // ✅ FIX: Hide Zignal's default buttons - we use custom buttons with proper validation
   readonly rendererConfig = computed<FormRendererConfig>(() => {
     const settings = this.builderService.settings();
-    const lang = this.lang();
 
     return {
-      layout: settings.layout,  // Direct mapping - types now match!
-      columns: settings.layout === 'grid' ? 2 : 1,  // Use 2 columns for grid layout
-      showSubmitButton: true,
-      showResetButton: settings.showReset,
-      submitText: settings.submitButtonText[lang],
-      resetText: settings.resetButtonText[lang],
+      layout: settings.layout,
+      columns: settings.layout === 'grid' ? 2 : 1,
+      showSubmitButton: false,  // ✅ Hide - using custom button
+      showResetButton: false,   // ✅ Hide - using custom button
       submitDisabledWhenInvalid: true,
     };
+  });
+
+  // ✅ FIX: Compute submit button disabled state with proper validation
+  readonly isSubmitDisabled = computed(() => {
+    const formState = this.formState();
+    if (!formState) return true;
+
+    // Check if form is valid
+    // This is reactive and updates when fields change
+    return !formState.valid();
   });
 
   // Effects
@@ -408,17 +455,43 @@ export class ZignalPreviewComponent implements OnInit, OnDestroy {
     return field?.label || fieldName;
   }
 
-  async onSubmit(values: Record<string, unknown>): Promise<void> {
-    // Run full validation including cross-field
+  // ✅ FIX: Custom submit handler with touchAll() + validation
+  async handleSubmit(): Promise<void> {
+    const formState = this.formState();
+    if (!formState) return;
+
+    // 1. Mark ALL fields as touched (forces validation on untouched fields)
+    this.zignalService.touchAll();
+
+    // 2. Wait a tick for signals to update
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // 3. Run full validation including cross-field
     const isValid = await this.zignalService.validateAll();
 
+    // 4. Only submit if valid
     if (isValid) {
+      const values = formState.getValues();
       this.submitted.emit(values);
+    } else {
+      // Show validation errors
+      console.warn('Form validation failed. Cannot submit.');
     }
   }
 
-  onReset(): void {
+  // ✅ FIX: Custom reset handler
+  handleReset(): void {
     this.zignalService.reset();
+  }
+
+  async onSubmit(values: Record<string, unknown>): Promise<void> {
+    // This shouldn't be called anymore since Zignal's buttons are hidden
+    // But keep it just in case
+    await this.handleSubmit();
+  }
+
+  onReset(): void {
+    this.handleReset();
   }
 
   // Public methods for parent component
